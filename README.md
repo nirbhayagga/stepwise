@@ -1,5 +1,7 @@
 # Stepwise
 
+**Live:** https://stepwise.nirbhay.dev
+
 An interactive algorithm visualizer for teaching and self-study. Every run is recorded as a sequence of immutable frames, so any algorithm can be played, paused, stepped forwards or backwards, and scrubbed with a timeline — with the pseudocode line, live variables, and step counters shown for each frame.
 
 Built with Vue 3, TypeScript and Vite. Runs entirely in the browser; no backend.
@@ -30,7 +32,7 @@ npm run build      # type-check (vue-tsc) + production build into dist/
 npm run preview    # serve dist/ locally
 ```
 
-`dist/` is fully static and uses hash routing with a relative base, so it can be hosted from any static host or sub-path (GitHub Pages, Netlify, S3, a plain directory) without rewrite rules.
+`dist/` is fully static and uses hash routing with a relative base, so it can be hosted from any static host or sub-path without rewrite rules. Production is Cloudflare Pages (build command `npm run build`, output `dist`, `NODE_VERSION=22`); `public/_headers` sets cache and security headers there. A container image (`Dockerfile`, `compose.yaml`) is published to GHCR by CI for self-hosting.
 
 ## Adding an algorithm
 

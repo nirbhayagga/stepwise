@@ -13,3 +13,12 @@ dist-ssr/
 .idea/
 *.md
 !README.md
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Test and audit output
+test-results/
+playwright-report/
+blob-report/
+.lighthouseci/

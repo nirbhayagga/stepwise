@@ -1,96 +1,70 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useTree } from '../composables/useTree';
+import { useKeyboard } from '../engine/useKeyboard';
+import { TREE_LIST } from '../algorithms/tree';
+import PageHeader from '../components/common/PageHeader.vue';
+import AlgorithmSelect from '../components/common/AlgorithmSelect.vue';
+import InputForm from '../components/common/InputForm.vue';
+import PlaybackControls from '../components/common/PlaybackControls.vue';
+import WatchWindow from '../components/common/WatchWindow.vue';
+import PseudocodePanel from '../components/common/PseudocodePanel.vue';
+import ComplexityCard from '../components/common/ComplexityCard.vue';
+import StateLegend from '../components/common/StateLegend.vue';
 import TreeCanvas from '../components/tree/TreeCanvas.vue';
-import WatchWindow from '../components/layout/WatchWindow.vue';
-import PseudocodePanel from '../components/layout/PseudocodePanel.vue';
-import { algorithmPseudocode } from '../utils/pseudocode';
-
-const currentAlgorithm = ref<'bst' | 'avl'>('bst');
-const pseudoCode = computed(() => algorithmPseudocode[currentAlgorithm.value] || []);
-const inputPayload = ref('15, 10, 20, 8, 12, 17, 25, 22, 28, 5');
 
 const {
-  root, isPlaying, currentVariables, activeLine,
-  resetTree, step, stepBack, play, pause
+  algorithmId, inputs, error, meta, root, output, variables, activeLine,
+  index, frameCount, isPlaying, speed,
+  play, pause, toggle, step, stepBack, reset, seek, rebuild, setAlgorithm,
 } = useTree();
 
-const getKeys = () => {
-    return inputPayload.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
-};
+useKeyboard({ toggle, step, stepBack, reset, toStart: () => seek(0), toEnd: () => seek(Infinity) });
 
-const onPlay = () => { play(currentAlgorithm.value, [getKeys()]); };
-const onPause = () => { pause(); };
-const onStep = () => { step(currentAlgorithm.value, [getKeys()]); };
-const onStepBack = () => { stepBack(); };
-const onReset = () => { resetTree(); };
-
-const switchAlgo = (val: 'bst' | 'avl') => {
-    currentAlgorithm.value = val;
-    onReset();
-};
+const isRB = computed(() => algorithmId.value === 'red-black');
+const legend = computed(() => [
+  { label: 'Visiting / comparing', color: 'var(--s-compare)', shape: 'circle' as const },
+  { label: 'Inserted', color: 'var(--s-sorted)', shape: 'circle' as const },
+  { label: 'Rotation pivot / swap', color: 'var(--s-mark)', shape: 'circle' as const },
+  { label: 'Output', color: 'var(--accent)', shape: 'circle' as const },
+  ...(isRB.value ? [{ label: 'Red', color: '#5a2b2b', shape: 'circle' as const }, { label: 'Black', color: '#11151b', shape: 'circle' as const }] : []),
+]);
 </script>
 
 <template>
-  <div class="view-container">
-    <div class="header">
-      <h1>Tree Visualizer</h1>
-      <p class="description">Visualize recursive object branching and tree rotation logic automatically mapping parent/children object behaviors down visual depth paths.</p>
+  <div class="view">
+    <PageHeader title="Binary Trees" subtitle="Search trees, balancing rotations, heaps and traversals. Duplicate keys are ignored for search trees." />
+
+    <div class="panel toolbar">
+      <AlgorithmSelect :model-value="algorithmId" :options="TREE_LIST" :disabled="isPlaying" @update:model-value="setAlgorithm" />
+      <InputForm :specs="meta.inputs" v-model="inputs" :disabled="isPlaying" :error="error" @change="rebuild" />
     </div>
 
-    <div class="controls-panel">
-      <div class="config-group">
-        <select :value="currentAlgorithm" @change="(e) => switchAlgo((e.target as HTMLSelectElement).value as any)">
-          <option value="bst">Binary Search Tree (Unbalanced)</option>
-          <option value="avl">AVL Tree (Self-Balancing)</option>
-        </select>
-        
-        <div class="dp-inputs">
-           <label>Insertion Sequence: <input v-model="inputPayload" placeholder="20, 10, 30..." @change="onReset" /></label>
-        </div>
-      </div>
-      
-      <div class="control-group playback">
-        <button @click="onStepBack" :disabled="isPlaying">Step Back</button>
-        <button @click="onStep" :disabled="isPlaying">Step Forward</button>
-        <button v-if="!isPlaying" @click="onPlay" class="btn-success">Play Insertion</button>
-        <button v-else @click="onPause" class="btn-danger">Pause</button>
-        <button @click="onReset">Clear Tree</button>
-      </div>
-    </div>
-    
-    <div class="dashboard-layout">
-      <div class="main-visual">
+    <PlaybackControls
+      :is-playing="isPlaying" :index="index" :frame-count="frameCount" :speed="speed" :disabled="!!error"
+      @play="play" @pause="pause" @step="step" @step-back="stepBack" @reset="reset" @seek="seek" @update:speed="speed = $event"
+    />
+
+    <div class="workspace">
+      <div class="workspace-main">
         <TreeCanvas :root="root" />
+        <div v-if="output.length" class="panel output mono">
+          <span class="eyebrow">Output</span>
+          <span v-for="(k, i) in output" :key="i" class="tok">{{ k }}</span>
+        </div>
+        <StateLegend :items="legend" />
       </div>
-      <div class="side-panels">
-         <WatchWindow :variables="currentVariables" />
-         <PseudocodePanel :code="pseudoCode" :activeLine="activeLine" />
+      <div class="workspace-side">
+        <ComplexityCard :meta="meta" />
+        <WatchWindow :variables="variables" />
+        <PseudocodePanel :code="meta.pseudocode" :active-line="activeLine" />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.view-container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; }
-.header { margin-bottom: 20px; }
-h1 { margin-top: 0; margin-bottom: 8px; color: #c9d1d9; font-size: 32px; }
-.description { color: #8b949e; margin: 0; font-size: 16px; }
-
-.controls-panel { display: flex; justify-content: space-between; align-items: center; background-color: #161b22; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #30363d; gap: 20px; flex-wrap: wrap; }
-.config-group { display: flex; gap: 15px; align-items: center; }
-.config-group select { background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 10px 16px; border-radius: 6px; font-weight: bold; width: auto; font-size: 15px; cursor: pointer; }
-.dp-inputs { display: flex; gap: 10px; }
-.dp-inputs label { font-size: 12px; font-weight: bold; color: #8b949e; display: flex; flex-direction: column; gap: 5px; }
-.dp-inputs input { background-color: #0d1117; color: #c9d1d9; border: 1px solid #30363d; padding: 6px; border-radius: 4px; width: 250px; font-family: monospace; }
-.playback { display: flex; gap: 10px; }
-button { background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: opacity 0.2s; }
-button:hover:not(:disabled) { opacity: 0.8; }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-success { background-color: #238636; border-color: #2ea043; color: white; }
-.btn-danger { background-color: #da3633; border-color: #f85149; color: white; }
-
-.dashboard-layout { display: flex; gap: 20px; align-items: stretch; height: 60vh; }
-.main-visual { flex: 3; display: flex; flex-direction: column; }
-.side-panels { flex: 1; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+.output { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; font-size: 12.5px; }
+.output .eyebrow { margin-right: 6px; }
+.tok { background: var(--accent-bg); color: var(--accent-strong); padding: 1px 6px; border-radius: 3px; }
 </style>

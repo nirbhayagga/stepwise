@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+tests
+playwright-report
+test-results
+.lighthouseci
+*.md
+!README.md
+*.log
+.env*

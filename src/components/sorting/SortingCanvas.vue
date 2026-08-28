@@ -1,50 +1,31 @@
 <script setup lang="ts">
-import type { ArrayBar } from '../../composables/useSorting';
+import { computed } from 'vue';
+import { SORT_STATE } from '../../algorithms/sorting';
 
-defineProps<{ bars: ArrayBar[] }>();
+const props = defineProps<{ values: Uint16Array; states: Uint8Array; height?: number }>();
+
+const CLASS = ['default', 'compare', 'write', 'sorted', 'mark'];
+const max = computed(() => {
+  let m = 1;
+  for (let i = 0; i < props.values.length; i++) if (props.values[i] > m) m = props.values[i];
+  return m;
+});
+const bars = computed(() =>
+  Array.from(props.values, (v, i) => ({ i, h: (v / max.value) * 100, cls: CLASS[props.states[i] ?? SORT_STATE.default] }))
+);
 </script>
 
 <template>
-  <div class="sorting-canvas">
-    <div 
-      v-for="bar in bars" 
-      :key="bar.id"
-      class="array-bar"
-      :class="bar.state"
-      :style="{ height: `${bar.value}%`, width: `${Math.max(2, 80 / bars.length)}%` }"
-    ></div>
+  <div class="panel canvas" :style="{ height: (height ?? 420) + 'px' }">
+    <div v-for="b in bars" :key="b.i" class="bar" :class="b.cls" :style="{ height: b.h + '%' }"></div>
   </div>
 </template>
 
 <style scoped>
-.sorting-canvas {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  height: 500px;
-  width: 100%;
-  gap: 2px;
-  background-color: #161b22;
-  border-radius: 8px;
-  padding: 20px;
-  border: 1px solid #30363d;
-}
-
-.array-bar {
-  background-color: #58a6ff;
-  border-radius: 4px 4px 0 0;
-  transition: background-color 0.1s, height 0.1s;
-}
-
-.array-bar.comparing {
-  background-color: #fce141;
-}
-
-.array-bar.swapping {
-  background-color: #ff7b72;
-}
-
-.array-bar.sorted {
-  background-color: #3fb950;
-}
+.canvas { display: flex; align-items: flex-end; gap: 1px; padding: 16px 16px 0; overflow: hidden; }
+.bar { flex: 1 1 0; min-width: 1px; background: var(--s-default); transition: height 0.08s linear; }
+.bar.compare { background: var(--s-compare); }
+.bar.write { background: var(--s-write); }
+.bar.sorted { background: var(--s-sorted); }
+.bar.mark { background: var(--s-mark); }
 </style>

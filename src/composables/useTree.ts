@@ -1,119 +1,40 @@
 import { ref, computed } from 'vue';
-import { treeAlgorithms, TreeAction, TreeNode } from '../utils/treeAlgorithms';
-
-export interface TreeVisualizationFrame {
-  root: TreeNode | null;
-  variables: Record<string, any>;
-  activeLine?: number;
-}
+import { useTimeline } from '../engine/useTimeline';
+import { defaultInputs, parseInputs } from '../engine/types';
+import type { InputValues } from '../engine/types';
+import { TREE, DEFAULT_TREE, buildTreeFrames } from '../algorithms/tree';
+import type { TreeFrame } from '../algorithms/tree';
 
 export function useTree() {
-  const root = ref<TreeNode | null>(null);
-  const timeline = ref<TreeVisualizationFrame[]>([]);
-  const currentFrameIndex = ref(0);
-  
-  const isPlaying = ref(false);
-  let playInterval: number | null = null;
-  const executionTime = ref(0);
-  let cachedAlgo = '';
+  const tl = useTimeline<TreeFrame>(450);
+  const algorithmId = ref(DEFAULT_TREE);
+  const inputs = ref<InputValues>(defaultInputs(TREE[DEFAULT_TREE].inputs));
+  const error = ref<string | null>(null);
 
-  const currentVariables = computed(() => timeline.value[currentFrameIndex.value]?.variables || {});
-  const activeLine = computed(() => timeline.value[currentFrameIndex.value]?.activeLine || null);
+  const meta = computed(() => TREE[algorithmId.value]);
+  const root = computed(() => tl.current.value?.root ?? null);
+  const output = computed(() => tl.current.value?.output ?? []);
+  const variables = computed(() => tl.current.value?.variables ?? {});
+  const activeLine = computed(() => tl.current.value?.line || null);
 
-  const applyFrame = (frame: TreeVisualizationFrame) => {
-    if (!frame) return;
-    root.value = frame.root;
+  const rebuild = () => {
+    const parsed = parseInputs(meta.value.inputs, inputs.value);
+    if (!parsed.ok) { error.value = parsed.error; tl.setFrames([]); return; }
+    const r = meta.value.setup(parsed.data);
+    if ('error' in r) { error.value = r.error; tl.setFrames([]); return; }
+    error.value = null;
+    tl.setFrames(buildTreeFrames(meta.value, r));
   };
 
-  const registerBaseFrame = () => {
-    timeline.value = [{ root: null, variables: {} }];
-    currentFrameIndex.value = 0;
-    executionTime.value = 0;
+  const setAlgorithm = (id: string) => {
+    if (!TREE[id]) return;
+    const keep = inputs.value.keys;
+    algorithmId.value = id;
+    inputs.value = { ...defaultInputs(TREE[id].inputs), ...(keep !== undefined ? { keys: keep } : {}) };
+    rebuild();
   };
 
-  const prepareAlgorithm = (algo: string, args: any[]) => {
-    const algoFn = treeAlgorithms[algo as keyof typeof treeAlgorithms];
-    if (!algoFn) return false;
+  rebuild();
 
-    const startTime = performance.now();
-    const frames: TreeVisualizationFrame[] = [];
-    frames.push({ root: null, variables: {} });
-    
-    // @ts-ignore
-    const generator = algoFn(...args);
-    let lastLine = 0;
-
-    let iter = generator.next();
-    while(!iter.done) {
-      const action = iter.value as TreeAction;
-      if (action.highlightLine) lastLine = action.highlightLine;
-      frames.push({
-        root: action.root,
-        variables: action.variables || {},
-        activeLine: lastLine
-      });
-      iter = generator.next();
-    }
-
-    executionTime.value = Math.floor(performance.now() - startTime);
-    timeline.value = frames;
-    cachedAlgo = algo;
-    currentFrameIndex.value = 0;
-    applyFrame(frames[0]);
-    return true;
-  };
-
-  const step = (algo: string, args: any[]) => {
-    if (timeline.value.length <= 1 || cachedAlgo !== algo) {
-      if (!prepareAlgorithm(algo, args)) return;
-    }
-    if (currentFrameIndex.value < timeline.value.length - 1) {
-      currentFrameIndex.value++;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    } else pause();
-  };
-
-  const stepBack = () => {
-    pause();
-    if (currentFrameIndex.value > 0) {
-      currentFrameIndex.value--;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    }
-  };
-
-  const play = (algo: string, args: any[]) => {
-    if (timeline.value.length <= 1 || cachedAlgo !== algo) {
-      if (!prepareAlgorithm(algo, args)) return;
-    }
-    isPlaying.value = true;
-    
-    playInterval = window.setInterval(() => {
-      if (!isPlaying.value || currentFrameIndex.value >= timeline.value.length - 1) {
-        clearInterval(playInterval!);
-        isPlaying.value = false;
-        return;
-      }
-      currentFrameIndex.value++;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    }, 450) as unknown as number; // Tree nodes should animate slowly to see traversal
-  };
-
-  const pause = () => {
-    isPlaying.value = false;
-    if (playInterval !== null) {
-        clearInterval(playInterval);
-        playInterval = null;
-    }
-  };
-  
-  const resetTree = () => {
-    pause();
-    root.value = null;
-    registerBaseFrame();
-  };
-
-  return {
-    root, executionTime, isPlaying, currentVariables, activeLine,
-    resetTree, step, stepBack, play, pause, prepareAlgorithm
-  };
+  return { ...tl, algorithmId, inputs, error, meta, root, output, variables, activeLine, rebuild, setAlgorithm };
 }

@@ -1,57 +1,43 @@
 <script setup lang="ts">
-import type { DPCell } from '../../composables/useDP';
+import { DP_STATE } from '../../algorithms/dp';
 
-defineProps<{ matrix: DPCell[][] }>();
+defineProps<{ rows: number; cols: number; values: string[]; states: Uint8Array; rowLabels: string[]; colLabels: string[] }>();
+const CLASS = ['', 'filled', 'current', 'source'];
+const cls = (s: number | undefined) => CLASS[s ?? DP_STATE.empty];
 </script>
 
 <template>
-  <div class="dp-board">
-    <div v-for="(row, rIndex) in matrix" :key="'r' + rIndex" class="dp-row">
-      <div 
-        v-for="cell in row" 
-        :key="cell.id" 
-        class="dp-cell"
-        :class="cell.state"
-      >
-        {{ cell.value }}
-      </div>
-    </div>
+  <div class="panel board">
+    <table class="mono">
+      <thead>
+        <tr>
+          <th class="corner"></th>
+          <th v-for="(c, j) in colLabels" :key="j" class="hdr">{{ c }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="r in rows" :key="r">
+          <th class="hdr row-hdr">{{ rowLabels[r - 1] }}</th>
+          <td v-for="c in cols" :key="c" class="cell" :class="cls(states[(r - 1) * cols + (c - 1)])">
+            {{ values[(r - 1) * cols + (c - 1)] }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
 <style scoped>
-.dp-board {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background-color: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  padding: 20px;
-  overflow: auto;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
+.board { padding: 14px; overflow: auto; }
+table { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
+.hdr { font-size: 11px; font-weight: 500; color: var(--text-muted); padding: 2px 6px; text-align: center; white-space: nowrap; }
+.row-hdr { text-align: right; }
+.cell {
+  width: 38px; height: 34px; min-width: 38px; text-align: center; font-size: 13px;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-faint);
+  transition: background 0.12s;
 }
-.dp-row {
-  display: flex;
-  gap: 4px;
-}
-.dp-cell {
-  width: 40px;
-  height: 40px;
-  background-color: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #c9d1d9;
-  font-family: monospace;
-  font-weight: bold;
-  font-size: 16px;
-  transition: all 0.2s;
-}
-.dp-cell.set { background-color: #a371f7; color: white; border-color: #d2a8ff; transform: scale(1.1); z-index: 2; }
-.dp-cell.source { background-color: #3fb950; color: white; }
+.cell.filled { color: var(--text); }
+.cell.source { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-strong); }
+.cell.current { background: var(--s-compare); border-color: var(--s-compare); color: #14120a; font-weight: 500; }
 </style>

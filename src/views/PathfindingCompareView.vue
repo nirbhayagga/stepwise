@@ -1,193 +1,100 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { reactive, computed, watch, onMounted } from 'vue';
 import { usePathfinding } from '../composables/usePathfinding';
+import { useKeyboard } from '../engine/useKeyboard';
+import { PATHFINDING_LIST } from '../algorithms/pathfinding';
+import PageHeader from '../components/common/PageHeader.vue';
+import AlgorithmSelect from '../components/common/AlgorithmSelect.vue';
+import PlaybackControls from '../components/common/PlaybackControls.vue';
+import MetricsBar from '../components/common/MetricsBar.vue';
 import GridDisplay from '../components/pathfinding/GridDisplay.vue';
-import MetricsDashboard from '../components/layout/MetricsDashboard.vue';
+import PathfindingLegend from '../components/pathfinding/PathfindingLegend.vue';
+import TerrainToolbar from '../components/pathfinding/TerrainToolbar.vue';
 
-const algoA = ref('dijkstra');
-const algoB = ref('astar');
-const rows = ref(21);
-const cols = ref(55);
+const a = reactive(usePathfinding());
+const b = reactive(usePathfinding());
+const panes = [a, b];
 
-const pathA = usePathfinding();
-const pathB = usePathfinding();
+const isPlaying = computed(() => a.isPlaying || b.isPlaying);
+const index = computed(() => Math.max(a.index, b.index));
+const frameCount = computed(() => Math.max(a.frameCount, b.frameCount));
+const speed = computed({ get: () => a.speed, set: v => { a.speed = v; b.speed = v; } });
+const diagonal = computed({ get: () => a.diagonal, set: v => { a.setDiagonal(v); b.setDiagonal(v); } });
 
-const isPlaying = ref(false);
-let checkInterval: number | null = null;
+// The left grid is the editable one; the right mirrors its terrain.
+watch(() => [a.cells, a.start, a.target] as const, () => b.restore(a.snapshot()));
 
-const syncBoards = () => {
-  pathB.rows.value = pathA.rows.value;
-  pathB.cols.value = pathA.cols.value;
-  pathB.grid.value = pathA.grid.value.map(r => r.map(n => ({...n})));
-  pathA.clearPath();
-  pathB.clearPath();
-};
+const play = () => panes.forEach(p => p.play());
+const pause = () => panes.forEach(p => p.pause());
+const toggle = () => (isPlaying.value ? pause() : play());
+const step = () => panes.forEach(p => p.step());
+const stepBack = () => panes.forEach(p => p.stepBack());
+const reset = () => panes.forEach(p => p.reset());
+const seek = (i: number) => panes.forEach(p => p.seek(i));
 
-const onGenerateWalls = () => {
-  onPause();
-  pathA.rows.value = rows.value; pathA.cols.value = cols.value;
-  pathA.initGrid();
-  pathA.generateRandomWalls();
-  syncBoards();
-};
-
-const onGenerateMaze = () => {
-  onPause();
-  pathA.rows.value = rows.value; pathA.cols.value = cols.value;
-  pathA.initGrid();
-  pathA.generateRecursiveMaze();
-  syncBoards();
-};
-
-const onClear = () => {
-  onPause();
-  pathA.rows.value = rows.value; pathA.cols.value = cols.value;
-  pathA.initGrid();
-  syncBoards();
-};
-
-onMounted(() => { 
-  pathA.initGrid(); 
-  pathB.initGrid(); 
+onMounted(() => {
+  b.setAlgorithm('astar');
+  a.generateMaze('random-walls');
 });
 
-onUnmounted(() => {
-  if (checkInterval) clearInterval(checkInterval);
-});
-
-const onPlay = () => {
-  isPlaying.value = true;
-  pathA.play(algoA.value);
-  pathB.play(algoB.value);
-  
-  checkInterval = window.setInterval(() => {
-    if (!pathA.isPlaying.value && !pathB.isPlaying.value) {
-      isPlaying.value = false;
-      if (checkInterval) clearInterval(checkInterval);
-    }
-  }, 100);
-};
-
-const onPause = () => {
-  isPlaying.value = false;
-  pathA.pause();
-  pathB.pause();
-};
-
-const onStep = () => {
-  pathA.step(algoA.value);
-  pathB.step(algoB.value);
-};
-
-const onStepBack = () => {
-  pathA.stepBack();
-  pathB.stepBack();
-};
-
-const onReset = () => {
-  onPause();
-  pathA.clearPath();
-  pathB.clearPath();
-};
-
+useKeyboard({ toggle, step, stepBack, reset, toStart: () => seek(0), toEnd: () => seek(Infinity) });
 </script>
 
 <template>
-  <div class="view-container">
-    <div class="header">
-      <h1>Pathfinding Comparison</h1>
-      <p class="description">Race pathfinding algorithms head-to-head on identical grid constraints to analyze heuristic efficiencies.</p>
-    </div>
+  <div class="view">
+    <PageHeader title="Pathfinding · Compare" subtitle="Two searches on the same terrain and endpoints, advanced in lockstep. Draw on the left grid; the right grid mirrors it." />
 
-    <div class="controls-panel">
-      <!-- Sync Controls -->
-      <div class="control-group">
-        <label>Generators:</label>
-        <button @click="onGenerateWalls" class="btn-primary">Sync Random Walls</button>
-        <button @click="onGenerateMaze" class="btn-primary">Sync Recursive Maze</button>
-        <button @click="onClear">Clear Grids</button>
-      </div>
-      <div class="control-group">
-        <label>
-          Cols: {{ cols }}
-          <input type="range" min="10" max="80" v-model="cols" @change="onClear" />
+    <div class="panel toolbar">
+      <div class="toolbar-group">
+        <label class="field">
+          <span>Moves</span>
+          <label class="field field-inline check-row">
+            <input type="checkbox" class="check" v-model="diagonal" :disabled="isPlaying" />
+            <span class="check-label">8-connected</span>
+          </label>
         </label>
-        <label>
-          Rows: {{ rows }}
-          <input type="range" min="10" max="40" v-model="rows" @change="onClear" />
+        <label class="field">
+          <span>Draw</span>
+          <select class="select" v-model="a.drawMode">
+            <option value="wall">Wall</option>
+            <option value="weight">Weight</option>
+            <option value="start">Start</option>
+            <option value="target">Target</option>
+          </select>
         </label>
       </div>
-      <div class="control-group playback">
-        <button @click="onStepBack" :disabled="isPlaying">Step Back</button>
-        <button @click="onStep" :disabled="isPlaying">Step Forward</button>
-        <button v-if="!isPlaying" @click="onPlay" class="btn-success">Play Simultaneously</button>
-        <button v-else @click="onPause" class="btn-danger">Pause</button>
-        <button @click="onReset">Reset</button>
-      </div>
+      <TerrainToolbar :rows="a.rows" :cols="a.cols" :disabled="isPlaying" @generate="a.generateMaze($event)" @clear="a.clearTerrain()" @clear-path="panes.forEach(p => p.invalidate())" @resize="(r, c) => a.resize(r, c)" />
     </div>
 
-    <div class="split-layout">
-      <!-- View A -->
-      <div class="split-pane">
-        <div class="pane-header">
-           <select v-model="algoA" :disabled="isPlaying" @change="pathA.clearPath()">
-             <option value="dijkstra">Dijkstra's Algorithm</option>
-             <option value="astar">A* Search</option>
-             <option value="greedy">Greedy Best-First</option>
-             <option value="bidir">Bidirectional Search</option>
-             <option value="bfs">Breadth-First Search</option>
-             <option value="dfs">Depth-First Search</option>
-           </select>
-        </div>
-        <MetricsDashboard 
-          metric1Label="Nodes Explored" :metric1Value="pathA.nodesExplored.value"
-          metric2Label="Path Length" :metric2Value="pathA.pathLength.value"
-          :timeMs="pathA.executionTime.value"
-        />
-        <GridDisplay :grid="pathA.grid.value" />
-      </div>
+    <PlaybackControls
+      :is-playing="isPlaying" :index="index" :frame-count="frameCount" :speed="speed" reset-label="Rewind" :pending="frameCount === 0"
+      @play="play" @pause="pause" @step="step" @step-back="stepBack" @reset="reset" @seek="seek" @update:speed="speed = $event"
+    />
 
-      <!-- View B -->
-      <div class="split-pane">
-        <div class="pane-header">
-           <select v-model="algoB" :disabled="isPlaying" @change="pathB.clearPath()">
-             <option value="dijkstra">Dijkstra's Algorithm</option>
-             <option value="astar">A* Search</option>
-             <option value="greedy">Greedy Best-First</option>
-             <option value="bidir">Bidirectional Search</option>
-             <option value="bfs">Breadth-First Search</option>
-             <option value="dfs">Depth-First Search</option>
-           </select>
+    <div class="split">
+      <div v-for="(p, i) in panes" :key="i" class="split-pane panel pane">
+        <div class="pane-head">
+          <AlgorithmSelect :model-value="p.algorithmId" :options="PATHFINDING_LIST" :label="i === 0 ? 'Left' : 'Right'" :disabled="isPlaying" @update:model-value="p.setAlgorithm" />
+          <span class="mono muted complexity">{{ p.meta.complexity.time.worst }}<template v-if="!p.meta.weighted"> · unweighted</template></span>
         </div>
-        <MetricsDashboard 
-          metric1Label="Nodes Explored" :metric1Value="pathB.nodesExplored.value"
-          metric2Label="Path Length" :metric2Value="pathB.pathLength.value"
-          :timeMs="pathB.executionTime.value"
-        />
-        <GridDisplay :grid="pathB.grid.value" />
+        <MetricsBar :metrics="[
+          { label: 'Visited', value: p.explored },
+          { label: 'Path length', value: p.pathLength },
+          { label: 'Path cost', value: p.pathCost.toFixed(2) },
+          { label: 'Step', value: p.index + ' / ' + p.lastIndex },
+        ]" />
+        <GridDisplay :rows="p.rows" :cols="p.cols" :cells="p.cells" :states="p.states" :start="p.start" :target="p.target" :interactive="i === 0"
+          @down="p.pointerDown" @enter="p.pointerEnter" @up="p.pointerUp" />
       </div>
     </div>
+    <PathfindingLegend />
   </div>
 </template>
 
 <style scoped>
-.view-container { max-width: 1500px; margin: 0 auto; display: flex; flex-direction: column; }
-.header { margin-bottom: 20px; }
-h1 { margin-top: 0; margin-bottom: 8px; color: #c9d1d9; font-size: 32px; }
-.description { color: #8b949e; margin: 0; font-size: 16px; }
-.controls-panel { display: flex; flex-wrap: wrap; gap: 24px; background-color: #161b22; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #30363d; }
-.control-group { display: flex; align-items: center; gap: 12px; }
-button { background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: opacity 0.2s; }
-button:hover:not(:disabled) { opacity: 0.8; }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-primary { background-color: #1f6feb; border-color: #388bfd; color: white; }
-.btn-success { background-color: #238636; border-color: #2ea043; color: white; }
-.btn-danger { background-color: #da3633; border-color: #f85149; color: white; }
-label { display: flex; flex-direction: column; font-size: 13px; font-weight: bold; color: #c9d1d9; }
-input[type=range] { margin-top: 6px; }
-
-.split-layout { display: flex; gap: 20px; flex-wrap: wrap; }
-.split-pane { flex: 1; min-width: 400px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #30363d; padding: 10px; border-radius: 8px; background-color: #0d1117; }
-.pane-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-select { background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 10px; border-radius: 6px; font-weight: bold; width: 100%; font-size: 16px; cursor: pointer; }
+.pane { padding: 12px; }
+.pane-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.complexity { font-size: 12px; padding-bottom: 6px; }
+.check-row { height: 30px; }
+.check-label { font-size: 13px; color: var(--text); text-transform: none; letter-spacing: 0; }
 </style>

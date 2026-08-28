@@ -1,229 +1,203 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
+import PageHeader from '../components/common/PageHeader.vue';
 import CodeEditor from '../components/sandbox/CodeEditor.vue';
 import SortingCanvas from '../components/sorting/SortingCanvas.vue';
+import SortingLegend from '../components/sorting/SortingLegend.vue';
 import GridDisplay from '../components/pathfinding/GridDisplay.vue';
-import type { ArrayBar } from '../composables/useSorting';
-import type { GridNode } from '../composables/usePathfinding';
+import PathfindingLegend from '../components/pathfinding/PathfindingLegend.vue';
+import { SORT_STATE, randomValues } from '../algorithms/sorting';
+import { NODE_STATE } from '../algorithms/pathfinding';
 
-const defaultSortingCode = `// Write custom iterative logic using visualizer API
-// visualizer.compare(i, j) => highlight comparison
-// visualizer.swap(i, j) => swap array values
-// 'visualizer.array' contains the initial numerical values
+const SORT_EXAMPLE = `// visualizer.array          the values (mutable)
+// await visualizer.compare(i, j)   highlight two indices
+// await visualizer.swap(i, j)      swap and highlight
+// await visualizer.write(i, v)     set array[i] = v
+// await visualizer.sorted(i)       mark index i final
+// visualizer.log(...)              print to the log
 
-const n = visualizer.array.length;
-for(let i = 0; i < n; i++) {
-  for(let j = i + 1; j < n; j++) {
-    await visualizer.compare(i, j);
-    // Reverse sort simple implementation
-    if (visualizer.array[j] > visualizer.array[i]) {
-       await visualizer.swap(i, j);
-       // swap the actual values locally too
-       const temp = visualizer.array[i];
-       visualizer.array[i] = visualizer.array[j];
-       visualizer.array[j] = temp;
-    }
+const a = visualizer.array;
+const n = a.length;
+for (let i = 0; i < n - 1; i++) {
+  let min = i;
+  for (let j = i + 1; j < n; j++) {
+    await visualizer.compare(j, min);
+    if (a[j] < a[min]) min = j;
   }
+  if (min !== i) await visualizer.swap(i, min);
+  await visualizer.sorted(i);
+}
+await visualizer.sorted(n - 1);
+visualizer.log('done', a.join(' '));`;
+
+const PATH_EXAMPLE = `// visualizer.rows, visualizer.cols
+// await visualizer.frontier(r, c)  mark a cell as queued
+// await visualizer.visit(r, c)     mark a cell as expanded
+// await visualizer.path(r, c)      mark a cell on the final path
+
+const { rows, cols } = visualizer;
+const start = [Math.floor(rows / 2), 2];
+const goal = [Math.floor(rows / 2) - 4, cols - 4];
+const key = (r, c) => r + ',' + c;
+const seen = new Set([key(...start)]);
+const parent = new Map();
+const queue = [start];
+while (queue.length) {
+  const [r, c] = queue.shift();
+  await visualizer.visit(r, c);
+  if (r === goal[0] && c === goal[1]) break;
+  for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const nr = r + dr, nc = c + dc;
+    if (nr < 0 || nc < 0 || nr >= rows || nc >= cols || seen.has(key(nr, nc))) continue;
+    seen.add(key(nr, nc));
+    parent.set(key(nr, nc), key(r, c));
+    await visualizer.frontier(nr, nc);
+    queue.push([nr, nc]);
+  }
+}
+for (let k = key(...goal); k; k = parent.get(k)) {
+  const [r, c] = k.split(',').map(Number);
+  await visualizer.path(r, c);
 }`;
 
-const defaultPathCode = `// visualizer.visit(r, c) => highlight visiting grid node
-for(let r = 0; r < visualizer.rows; r++) {
-  for(let c = 0; c < visualizer.cols; c++) {
-    await visualizer.visit(r, c);
-  }
-}`;
+type Mode = 'sort' | 'path';
+const ROWS = 19, COLS = 41, N = 40;
 
-const mode = ref<'sort' | 'path'>('sort');
-const code = ref(defaultSortingCode);
-const isRunning = ref(false);
-const array = ref<ArrayBar[]>([]);
-const grid = ref<GridNode[][]>([]);
+const mode = ref<Mode>('sort');
+const code = ref(SORT_EXAMPLE);
+const speed = ref(50);
+const running = ref(false);
+const error = ref('');
+const log = ref<string[]>([]);
+
+const values = shallowRef(new Uint16Array(N));
+const sortStates = shallowRef(new Uint8Array(N));
+const cells = new Uint8Array(ROWS * COLS);
+const gridStates = shallowRef(new Uint8Array(ROWS * COLS));
 let worker: Worker | null = null;
-const errorMsg = ref('');
 
-const initArray = () => {
-  array.value = Array.from({ length: 50 }, () => ({
-    value: Math.floor(Math.random() * 95) + 5,
-    state: 'default',
-    id: crypto.randomUUID()
-  }));
+const resetCanvas = () => {
+  values.value = Uint16Array.from(randomValues(N));
+  sortStates.value = new Uint8Array(N);
+  gridStates.value = new Uint8Array(ROWS * COLS);
 };
 
-const initGrid = () => {
-  const newGrid: GridNode[][] = [];
-  for (let r = 0; r < 20; r++) {
-    const currentRow: GridNode[] = [];
-    for (let c = 0; c < 45; c++) {
-      currentRow.push({ row: r, col: c, type: 'empty', state: 'unvisited', id: `${r}-${c}` });
-    }
-    newGrid.push(currentRow);
-  }
-  grid.value = newGrid;
+const setSortState = (indices: number[], s: number, clear = true) => {
+  const next = clear ? Uint8Array.from(sortStates.value, v => (v === SORT_STATE.sorted ? v : 0)) : Uint8Array.from(sortStates.value);
+  for (const i of indices) if (i >= 0 && i < N) next[i] = s;
+  sortStates.value = next;
+};
+const setGridState = (r: number, c: number, s: number) => {
+  if (r < 0 || c < 0 || r >= ROWS || c >= COLS) return;
+  const next = Uint8Array.from(gridStates.value);
+  next[r * COLS + c] = s;
+  gridStates.value = next;
 };
 
-watch(mode, (newMode) => {
-  if (newMode === 'sort') {
-    code.value = defaultSortingCode;
-    initArray();
-  } else {
-    code.value = defaultPathCode;
-    initGrid();
-  }
-});
-
-const setupWorker = () => {
+const spawn = () => {
+  worker?.terminate();
   worker = new Worker(new URL('../workers/sandboxWorker.ts', import.meta.url), { type: 'module' });
-  worker.onmessage = (e) => {
-    const { action, i, j, r, c, message } = e.data;
-    
-    if (mode.value === 'sort') {
-      if (action !== 'visit') {
-        array.value.forEach(b => b.state = 'default');
+  worker.onmessage = (e: MessageEvent) => {
+    const m = e.data;
+    switch (m.action) {
+      case 'compare': setSortState([m.i, m.j], SORT_STATE.compare); break;
+      case 'swap': {
+        const v = Uint16Array.from(values.value);
+        [v[m.i], v[m.j]] = [v[m.j], v[m.i]];
+        values.value = v;
+        setSortState([m.i, m.j], SORT_STATE.write);
+        break;
       }
-
-      if (action === 'compare') {
-        if(array.value[i]) array.value[i].state = 'comparing';
-        if(array.value[j]) array.value[j].state = 'comparing';
-      } else if (action === 'swap') {
-        if(array.value[i]) array.value[i].state = 'swapping';
-        if(array.value[j]) array.value[j].state = 'swapping';
-        
-        const temp = array.value[i].value;
-        array.value[i].value = array.value[j].value;
-        array.value[j].value = temp;
+      case 'write': {
+        const v = Uint16Array.from(values.value);
+        v[m.i] = m.value;
+        values.value = v;
+        setSortState([m.i], SORT_STATE.write);
+        break;
       }
-    } else {
-      if (action === 'visit') {
-        if (grid.value[r] && grid.value[r][c]) {
-          grid.value[r][c].state = 'visited';
-        }
-      }
+      case 'mark': setSortState([m.i], SORT_STATE.mark); break;
+      case 'sorted': setSortState([m.i], SORT_STATE.sorted, false); break;
+      case 'visit': setGridState(m.r, m.c, NODE_STATE.visited); break;
+      case 'frontier': setGridState(m.r, m.c, NODE_STATE.frontier); break;
+      case 'path': setGridState(m.r, m.c, NODE_STATE.path); break;
+      case 'log': log.value = [...log.value, m.text]; break;
+      case 'error': error.value = m.message; running.value = false; break;
+      case 'finish':
+        running.value = false;
+        if (mode.value === 'sort') sortStates.value = new Uint8Array(N).fill(SORT_STATE.sorted);
+        break;
     }
-
-    if (action === 'error') {
-      errorMsg.value = message;
-      isRunning.value = false;
-    } else if (action === 'finish') {
-      isRunning.value = false;
-      if (mode.value === 'sort') {
-        array.value.forEach(b => b.state = 'sorted');
-      }
-    } // else ignore finish for pathfinding default
   };
 };
 
-onMounted(() => {
-  initArray();
-  setupWorker();
-});
-
-onUnmounted(() => {
-  worker?.terminate();
-});
-
-const onRun = () => {
-  if (isRunning.value) return;
-  isRunning.value = true;
-  errorMsg.value = '';
-  
-  let executableCode = code.value;
-
-  if (mode.value === 'sort') {
-    initArray();
-    const serializedArray = JSON.stringify(array.value.map(b => b.value));
-    executableCode = `visualizer.array = ${serializedArray};\n${executableCode}`;
-  } else {
-    initGrid();
-    executableCode = `visualizer.rows = 20; visualizer.cols = 45;\n${executableCode}`;
-  }
-
-  worker?.postMessage({ type: 'execute', code: executableCode, speed: 50 });
+const run = () => {
+  if (running.value) return;
+  resetCanvas();
+  error.value = '';
+  log.value = [];
+  running.value = true;
+  worker?.postMessage({
+    type: 'execute', code: code.value, speed: speed.value,
+    array: Array.from(values.value), rows: ROWS, cols: COLS,
+  });
 };
+const stop = () => { running.value = false; spawn(); };
 
-const onStop = () => {
-  isRunning.value = false;
-  worker?.terminate();
-  setupWorker();
-};
+watch(mode, m => { stop(); code.value = m === 'sort' ? SORT_EXAMPLE : PATH_EXAMPLE; resetCanvas(); error.value = ''; log.value = []; });
+watch(speed, s => worker?.postMessage({ type: 'update-speed', speed: s }));
 
-const updateSpeed = (val: number) => {
-  worker?.postMessage({ type: 'update-speed', speed: val });
-};
+const gridStart = computed(() => Math.floor(ROWS / 2) * COLS + 2);
+const gridGoal = computed(() => (Math.floor(ROWS / 2) - 4) * COLS + (COLS - 4));
 
+onMounted(() => { resetCanvas(); spawn(); });
+onUnmounted(() => worker?.terminate());
 </script>
 
 <template>
-  <div class="view-container">
-    <div class="header">
-      <h1>Custom Sandbox Environment</h1>
-      <p class="description">Write arbitrary logic safely using Javascript and interact directly with the visualizer API.</p>
-    </div>
+  <div class="view">
+    <PageHeader title="Sandbox" subtitle="Write your own algorithm against the visualizer API. Code runs in a Web Worker, so an infinite loop cannot freeze the page; Stop terminates the worker." />
 
-    <div class="top-controls">
-      <label class="mode-select">
-        Sandbox Mode
-        <select v-model="mode" :disabled="isRunning">
-          <option value="sort">Sorting Algorithms</option>
-          <option value="path">Pathfinding Traversal</option>
+    <div class="panel toolbar">
+      <label class="field">
+        <span>Canvas</span>
+        <select class="select" v-model="mode" :disabled="running">
+          <option value="sort">Array (sorting)</option>
+          <option value="path">Grid (pathfinding)</option>
         </select>
       </label>
+      <button class="btn btn-primary" :disabled="running" @click="run">Run</button>
+      <button class="btn btn-danger" :disabled="!running" @click="stop">Stop</button>
+      <label class="field">
+        <span>Speed</span>
+        <input type="range" class="range" min="1" max="100" v-model.number="speed" />
+      </label>
+      <span v-if="running" class="muted status">running…</span>
     </div>
 
-    <div class="sandbox-layout">
-      <div class="editor-section">
-        <CodeEditor v-model:code="code" />
-        <div class="controls">
-          <button @click="onRun" :disabled="isRunning" class="btn-success">Run Custom Code</button>
-          <button @click="onStop" :disabled="!isRunning" class="btn-danger">Stop Execution</button>
-          <label class="speed-label">
-            Pacing Speed
-            <input type="range" min="1" max="100" value="50" @input="(e) => updateSpeed(Number((e.target as HTMLInputElement).value))" />
-          </label>
-        </div>
-        <div v-if="errorMsg" class="error-banner">
-          {{ errorMsg }}
+    <div class="split">
+      <div class="split-pane">
+        <CodeEditor v-model:code="code" :disabled="running" />
+        <div v-if="error" class="panel panel-body error-text mono">{{ error }}</div>
+        <div v-if="log.length" class="panel logs mono">
+          <div class="panel-title">Log</div>
+          <div class="panel-body"><div v-for="(l, i) in log" :key="i">{{ l }}</div></div>
         </div>
       </div>
-      
-      <div class="visualizer-section">
-        <SortingCanvas v-if="mode === 'sort'" :bars="array" />
-        <GridDisplay v-else :grid="grid" />
+      <div class="split-pane">
+        <template v-if="mode === 'sort'">
+          <SortingCanvas :values="values" :states="sortStates" :height="360" />
+          <SortingLegend />
+        </template>
+        <template v-else>
+          <GridDisplay :rows="ROWS" :cols="COLS" :cells="cells" :states="gridStates" :start="gridStart" :target="gridGoal" />
+          <PathfindingLegend />
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.view-container { max-width: 1300px; margin: 0 auto; display: flex; flex-direction: column; }
-.top-controls { margin-bottom: 20px; }
-.mode-select {
-  display: flex; flex-direction: column; width: 250px;
-  font-weight: bold; color: #c9d1d9; font-size: 14px;
-}
-.mode-select select {
-  margin-top: 8px; padding: 10px; background-color: #21262d; border: 1px solid #30363d;
-  color: #c9d1d9; border-radius: 6px; font-weight: bold;
-}
-.sandbox-layout { display: flex; gap: 30px; align-items: flex-start; }
-.editor-section { flex: 1; display: flex; flex-direction: column; gap: 15px; }
-.visualizer-section { flex: 1; min-width: 500px; }
-.controls {
-  display: flex; gap: 15px; background-color: #161b22; padding: 15px;
-  border-radius: 8px; border: 1px solid #30363d; align-items: center;
-}
-button {
-  padding: 10px 16px; border-radius: 6px; font-weight: bold;
-  cursor: pointer; border: 1px solid transparent;
-}
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-success { background-color: #238636; border-color: #2ea043; color: white; }
-.btn-danger { background-color: #da3633; border-color: #f85149; color: white; }
-.speed-label { color: #c9d1d9; font-weight: bold; font-size: 13px; display: flex; flex-direction: column; }
-.error-banner {
-  background-color: #f8514933; border: 1px solid #f85149; color: #ff7b72;
-  padding: 12px; border-radius: 6px; font-family: monospace;
-}
-.header { margin-bottom: 15px; }
-h1 { margin-top: 0; margin-bottom: 8px; color: #c9d1d9; font-size: 32px; }
-.description { color: #8b949e; margin: 0; font-size: 16px; }
+.status { align-self: center; padding-bottom: 6px; font-size: 12px; }
+.logs .panel-body { max-height: 160px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
 </style>

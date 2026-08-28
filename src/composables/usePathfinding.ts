@@ -1,338 +1,148 @@
-import { ref, computed } from 'vue';
-import { pathAlgorithms } from '../utils/pathfindingAlgorithms';
+import { ref, shallowRef, computed } from 'vue';
+import { useTimeline } from '../engine/useTimeline';
+import { mulberry32, randomSeed } from '../engine/random';
+import {
+  PATHFINDING, DEFAULT_PATHFINDING, MAZE_BY_ID, CELL, buildPathFrames, resolveDiagonal, idx,
+} from '../algorithms/pathfinding';
+import type { PathFrame, Terrain } from '../algorithms/pathfinding';
 
-export type NodeType = 'empty' | 'wall' | 'weight' | 'start' | 'target';
-export type NodeState = 'unvisited' | 'visiting' | 'visited' | 'path';
+export type DrawMode = 'wall' | 'weight' | 'start' | 'target';
 
-export interface GridNode {
-  row: number;
-  col: number;
-  type: NodeType;
-  state: NodeState;
-  id: string;
-}
+export interface TerrainSnapshot { rows: number; cols: number; cells: Uint8Array; start: number; target: number }
 
-export interface PathVisualizationFrame {
-  grid: GridNode[][];
-  nodesExplored: number;
-  pathLength: number;
-  variables: Record<string, any>;
-  activeLine?: number;
-}
+/** Editable grid + a lazily built search timeline for the selected algorithm. */
+export function usePathfinding(initialRows = 21, initialCols = 51) {
+  const tl = useTimeline<PathFrame>(15);
+  const rows = ref(initialRows);
+  const cols = ref(initialCols);
+  const cells = shallowRef<Uint8Array>(new Uint8Array(initialRows * initialCols));
+  const start = ref(0);
+  const target = ref(0);
+  const algorithmId = ref(DEFAULT_PATHFINDING);
+  const diagonal = ref(false);
+  const drawMode = ref<DrawMode>('wall');
 
-export function usePathfinding() {
-  const rows = ref(21);
-  const cols = ref(55);
-  const grid = ref<GridNode[][]>([]);
-  const timeline = ref<PathVisualizationFrame[]>([]);
-  const currentFrameIndex = ref(0);
-  
-  const isPlaying = ref(false);
-  let playInterval: number | null = null;
-  const executionTime = ref(0);
-  let cachedAlgo = '';
+  const meta = computed(() => PATHFINDING[algorithmId.value]);
+  const effectiveDiagonal = computed(() => resolveDiagonal(meta.value, diagonal.value));
+  const terrain = computed<Terrain>(() => ({ rows: rows.value, cols: cols.value, cells: cells.value }));
+  const states = computed(() => tl.current.value?.states ?? null);
+  const explored = computed(() => tl.current.value?.explored ?? 0);
+  const frontier = computed(() => tl.current.value?.frontier ?? 0);
+  const pathLength = computed(() => tl.current.value?.pathLength ?? 0);
+  const pathCost = computed(() => tl.current.value?.pathCost ?? 0);
+  const variables = computed(() => tl.current.value?.variables ?? {});
+  const activeLine = computed(() => tl.current.value?.line || null);
+  const isBuilt = computed(() => tl.frameCount.value > 0);
 
-  const drawMode = ref<NodeType>('wall');
-  const isMousePressed = ref(false);
-  const dragType = ref<NodeType | 'erase' | null>(null);
+  /** Drop the recorded search; terrain stays. */
+  const invalidate = () => tl.setFrames([]);
 
-  const nodesExplored = computed(() => timeline.value[currentFrameIndex.value]?.nodesExplored || 0);
-  const pathLength = computed(() => timeline.value[currentFrameIndex.value]?.pathLength || 0);
-  const currentVariables = computed(() => timeline.value[currentFrameIndex.value]?.variables || {});
-  const activeLine = computed(() => timeline.value[currentFrameIndex.value]?.activeLine || null);
+  const build = () => {
+    tl.setFrames(buildPathFrames(meta.value, terrain.value, start.value, target.value, { diagonal: effectiveDiagonal.value }));
+  };
+  const ensure = () => { if (!isBuilt.value) build(); };
 
-  const applyFrame = (frame: PathVisualizationFrame) => {
-    if (!frame) return;
-    grid.value = frame.grid;
+  const placeDefaults = () => {
+    const r = Math.floor(rows.value / 2);
+    start.value = idx(terrain.value, r, Math.floor(cols.value / 4));
+    target.value = idx(terrain.value, r, cols.value - 1 - Math.floor(cols.value / 4));
   };
 
-  const registerBaseFrame = () => {
-    timeline.value = [{ grid: grid.value.map(r => r.map(n => ({...n}))), nodesExplored: 0, pathLength: 0, variables: {} }];
-    currentFrameIndex.value = 0;
-    executionTime.value = 0;
+  const resize = (r: number, c: number) => {
+    rows.value = r; cols.value = c;
+    cells.value = new Uint8Array(r * c);
+    placeDefaults();
+    invalidate();
   };
 
-  const initGrid = () => {
-    pause();
-    const newGrid: GridNode[][] = [];
-    for (let r = 0; r < rows.value; r++) {
-      const currentRow: GridNode[] = [];
-      for (let c = 0; c < cols.value; c++) {
-        let type: NodeType = 'empty';
-        if (r === Math.floor(rows.value / 2) && c === Math.floor(cols.value / 4)) type = 'start';
-        if (r === Math.floor(rows.value / 2) && c === cols.value - Math.floor(cols.value / 4)) type = 'target';
-        currentRow.push({ row: r, col: c, type, state: 'unvisited', id: `${r}-${c}` });
-      }
-      newGrid.push(currentRow);
+  const clearTerrain = () => { cells.value = new Uint8Array(rows.value * cols.value); invalidate(); };
+
+  const randomizeEndpoints = (rnd: () => number) => {
+    const empties: number[] = [];
+    for (let i = 0; i < cells.value.length; i++) if (cells.value[i] !== CELL.wall) empties.push(i);
+    if (empties.length < 2) { placeDefaults(); return; }
+    const a = Math.floor(rnd() * empties.length);
+    let b = Math.floor(rnd() * empties.length);
+    while (b === a) b = Math.floor(rnd() * empties.length);
+    start.value = empties[a]; target.value = empties[b];
+  };
+
+  const generateMaze = (mazeId: string, seed = randomSeed()) => {
+    const gen = MAZE_BY_ID[mazeId];
+    if (!gen) return;
+    const rnd = mulberry32(seed);
+    const next = gen.generate(terrain.value, rnd);
+    cells.value = next;
+    randomizeEndpoints(rnd);
+    invalidate();
+  };
+
+  // ---- painting -----------------------------------------------------------
+  let stroke: DrawMode | 'erase' | null = null;
+
+  const setCell = (i: number, type: number) => {
+    if (i === start.value || i === target.value) return;
+    if (cells.value[i] === type) return;
+    const next = Uint8Array.from(cells.value);
+    next[i] = type;
+    cells.value = next;
+    invalidate();
+  };
+
+  const moveEndpoint = (which: 'start' | 'target', i: number) => {
+    if (cells.value[i] === CELL.wall) return;
+    if (which === 'start' && i !== target.value) start.value = i;
+    if (which === 'target' && i !== start.value) target.value = i;
+    invalidate();
+  };
+
+  const paint = (i: number) => {
+    if (!stroke) return;
+    if (stroke === 'start' || stroke === 'target') moveEndpoint(stroke, i);
+    else if (stroke === 'erase') setCell(i, CELL.empty);
+    else setCell(i, stroke === 'wall' ? CELL.wall : CELL.weight);
+  };
+
+  const pointerDown = (i: number) => {
+    tl.pause();
+    if (i === start.value) stroke = 'start';
+    else if (i === target.value) stroke = 'target';
+    else if (drawMode.value === 'start' || drawMode.value === 'target') stroke = drawMode.value;
+    else {
+      const wanted = drawMode.value === 'wall' ? CELL.wall : CELL.weight;
+      stroke = cells.value[i] === wanted ? 'erase' : drawMode.value;
     }
-    grid.value = newGrid;
-    registerBaseFrame();
+    paint(i);
+  };
+  const pointerEnter = (i: number) => paint(i);
+  const pointerUp = () => { stroke = null; };
+
+  // ---- settings -------------------------------------------------------------
+  const setAlgorithm = (id: string) => { if (PATHFINDING[id]) { algorithmId.value = id; invalidate(); } };
+  const setDiagonal = (v: boolean) => { diagonal.value = v; invalidate(); };
+
+  const snapshot = (): TerrainSnapshot => ({
+    rows: rows.value, cols: cols.value, cells: Uint8Array.from(cells.value), start: start.value, target: target.value,
+  });
+  const restore = (s: TerrainSnapshot) => {
+    rows.value = s.rows; cols.value = s.cols; cells.value = Uint8Array.from(s.cells);
+    start.value = s.start; target.value = s.target;
+    invalidate();
   };
 
-  const randomizeStartTarget = () => {
-    const newGrid = grid.value.map(r => r.map(n => ({...n})));
-    newGrid.forEach(row => row.forEach(node => {
-      if (node.type === 'start' || node.type === 'target') node.type = 'empty';
-    }));
-    const empties: GridNode[] = [];
-    newGrid.forEach(row => row.forEach(node => { if (node.type === 'empty') empties.push(node); }));
-    if (empties.length >= 2) {
-      const idx1 = Math.floor(Math.random() * empties.length);
-      let idx2 = Math.floor(Math.random() * empties.length);
-      while(idx1 === idx2) idx2 = Math.floor(Math.random() * empties.length);
-      empties[idx1].type = 'start';
-      empties[idx2].type = 'target';
-    } else {
-      newGrid[0][0].type = 'start';
-      newGrid[0][1].type = 'target';
-    }
-    grid.value = newGrid;
-  };
+  // Playback wrappers build the timeline on demand.
+  const play = () => { ensure(); tl.play(); };
+  const step = () => { ensure(); tl.step(); };
+  const seek = (i: number) => { ensure(); tl.seek(i); };
+  const toggle = () => (tl.isPlaying.value ? tl.pause() : play());
 
-  const clearTerrain = () => {
-    pause();
-    const newGrid = grid.value.map(r => r.map(n => ({...n})));
-    newGrid.forEach(row => row.forEach(node => {
-      if (node.type === 'wall' || node.type === 'weight') node.type = 'empty';
-    }));
-    grid.value = newGrid;
-    clearPath();
-  };
-
-  const clearPath = () => {
-    pause();
-    const newGrid = grid.value.map(r => r.map(n => ({...n})));
-    newGrid.forEach(row => row.forEach(node => {
-      node.state = 'unvisited';
-    }));
-    grid.value = newGrid;
-    registerBaseFrame();
-  };
-
-  const generateRandomWalls = () => {
-    clearTerrain();
-    const newGrid = grid.value.map(r => r.map(n => ({...n})));
-    newGrid.forEach(row => row.forEach(node => {
-      if (node.type === 'empty' && Math.random() < 0.28) {
-        node.type = 'wall';
-      }
-    }));
-    grid.value = newGrid;
-    randomizeStartTarget();
-    registerBaseFrame(); 
-  };
-
-  const generateRecursiveMaze = () => {
-    clearTerrain();
-    const newGrid = grid.value.map(r => r.map(n => ({...n})));
-    // Fill full layout with walls unconditionally (safely erases old nodes)
-    for (let r = 0; r < rows.value; r++) {
-      for (let c = 0; c < cols.value; c++) {
-         newGrid[r][c].type = 'wall';
-      }
-    }
-    
-    // Randomized DFS mapping onto grid
-    const carve = (r: number, c: number) => {
-      newGrid[r][c].type = 'empty';
-      const dirs = [[0, -2], [0, 2], [-2, 0], [2, 0]];
-      // Correct Fisher-Yates shuffle to safely evade inconsistent comparator TypeErrors
-      for (let i = dirs.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          const tmp = dirs[i];
-          dirs[i] = dirs[j];
-          dirs[j] = tmp;
-      }
-      for(let [dr, dc] of dirs) {
-        const nr = r + dr, nc = c + dc;
-        if(nr > 0 && nr < rows.value - 1 && nc > 0 && nc < cols.value - 1) {
-          if (newGrid[nr][nc].type === 'wall') {
-            newGrid[r + dr/2][c + dc/2].type = 'empty';
-            carve(nr, nc);
-          }
-        }
-      }
-    }
-    
-    // Carve starting from an odd cell offset
-    carve(1, 1);
-    grid.value = newGrid;
-    
-    // Force start and target validity 
-    randomizeStartTarget();
-
-    registerBaseFrame();
-  };
-
-  const clearSpecificType = (type: NodeType) => {
-    grid.value.forEach(row => row.forEach(node => {
-      if (node.type === type) node.type = 'empty';
-    }));
-  };
-
-  const handleMouseDown = (node: GridNode) => {
-    isMousePressed.value = true;
-    
-    if (drawMode.value === 'start' || drawMode.value === 'target') {
-      dragType.value = drawMode.value;
-      clearSpecificType(drawMode.value);
-      node.type = drawMode.value;
-    } else {
-      if (node.type === 'start' || node.type === 'target') {
-        dragType.value = node.type;
-      } else if (node.type === drawMode.value) { 
-        dragType.value = 'erase'; 
-        node.type = 'empty'; 
-      } else { 
-        dragType.value = drawMode.value; 
-        node.type = drawMode.value; 
-      }
-    }
-    registerBaseFrame();
-  };
-
-  const handleMouseEnter = (node: GridNode) => {
-    if (!isMousePressed.value) return;
-    if (dragType.value === 'start' || dragType.value === 'target') {
-      if (node.type !== 'start' && node.type !== 'target') {
-        clearSpecificType(dragType.value);
-        node.type = dragType.value;
-      }
-    } else if (dragType.value === 'wall' || dragType.value === 'weight') {
-      if (node.type !== 'start' && node.type !== 'target') node.type = dragType.value;
-    } else if (dragType.value === 'erase') {
-      if (node.type === 'wall' || node.type === 'weight') node.type = 'empty';
-    }
-    registerBaseFrame();
-  };
-
-  const handleMouseUp = () => {
-    isMousePressed.value = false;
-    dragType.value = null;
-  };
-
-  const getStartAndTarget = (): { start: GridNode | null, target: GridNode | null } => {
-    let start: GridNode | null = null;
-    let target: GridNode | null = null;
-    for (const row of grid.value) {
-      for (const node of row) {
-        if (node.type === 'start') start = node;
-        if (node.type === 'target') target = node;
-      }
-    }
-    return { start, target };
-  };
-
-  const prepareAlgorithm = (algo: string) => {
-    clearPathForRun();
-    const { start, target } = getStartAndTarget();
-    if (!start || !target) return false;
-    
-    const algoFn = pathAlgorithms[algo];
-    if (!algoFn) return false;
-
-    const startTime = performance.now();
-    const frames: PathVisualizationFrame[] = [];
-    
-    let currentGrid = timeline.value[0].grid.map(row => row.map(node => ({...node})));
-    let explores = 0;
-    let paths = 0;
-    let lastLine = 0;
-    frames.push({ grid: currentGrid, nodesExplored: 0, pathLength: 0, variables: {} });
-    
-    const algoGrid = currentGrid.map(row => row.map(node => ({...node})));
-    const gridStart = algoGrid[start.row][start.col];
-    const gridTarget = algoGrid[target.row][target.col];
-    const generator = algoFn(algoGrid, gridStart, gridTarget);
-
-    let iter = generator.next();
-    while(!iter.done) {
-      const action = iter.value;
-      if (action.highlightLine) lastLine = action.highlightLine;
-      const nextGrid = currentGrid.map(row => row.map(node => ({...node})));
-      
-      action.nodes.forEach(rn => {
-        const targetNode = nextGrid[rn.row][rn.col];
-        if (targetNode) targetNode.state = action.type;
-      });
-
-      if (action.type === 'visited') explores++;
-      if (action.type === 'path') paths++;
-
-      frames.push({
-        grid: nextGrid,
-        nodesExplored: explores,
-        pathLength: paths,
-        variables: action.variables || {},
-        activeLine: lastLine
-      });
-
-      currentGrid = nextGrid;
-      iter = generator.next();
-    }
-
-    executionTime.value = Math.floor(performance.now() - startTime);
-    timeline.value = frames;
-    cachedAlgo = algo;
-    currentFrameIndex.value = 0;
-    applyFrame(frames[0]);
-    return true;
-  };
-
-  const clearPathForRun = () => {
-    for (let r = 0; r < rows.value; r++) {
-      for (let c = 0; c < cols.value; c++) {
-        grid.value[r][c].state = 'unvisited';
-      }
-    }
-  };
-
-  const step = (algo: string) => {
-    if (timeline.value.length <= 1 || cachedAlgo !== algo) {
-      if (!prepareAlgorithm(algo)) return;
-    }
-    if (currentFrameIndex.value < timeline.value.length - 1) {
-      currentFrameIndex.value++;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    } else pause();
-  };
-
-  const stepBack = () => {
-    pause();
-    if (currentFrameIndex.value > 0) {
-      currentFrameIndex.value--;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    }
-  };
-
-  const play = (algo: string) => {
-    if (timeline.value.length <= 1 || cachedAlgo !== algo) {
-      if (!prepareAlgorithm(algo)) return;
-    }
-    isPlaying.value = true;
-    
-    playInterval = window.setInterval(() => {
-      if (!isPlaying.value || currentFrameIndex.value >= timeline.value.length - 1) {
-        clearInterval(playInterval!);
-        isPlaying.value = false;
-        return;
-      }
-      currentFrameIndex.value++;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    }, 15) as unknown as number;
-  };
-
-  const pause = () => {
-    isPlaying.value = false;
-    if (playInterval !== null) {
-        clearInterval(playInterval);
-        playInterval = null;
-    }
-  };
+  placeDefaults();
 
   return {
-    grid, rows, cols, nodesExplored, pathLength, executionTime, isPlaying, currentVariables, activeLine, drawMode,
-    initGrid, clearTerrain, clearPath, generateRandomWalls, generateRecursiveMaze, handleMouseDown, handleMouseEnter, handleMouseUp,
-    step, stepBack, play, pause
+    ...tl, play, step, seek, toggle,
+    rows, cols, cells, start, target, algorithmId, diagonal, effectiveDiagonal, drawMode, meta, terrain,
+    states, explored, frontier, pathLength, pathCost, variables, activeLine, isBuilt,
+    invalidate, build, resize, clearTerrain, generateMaze, setAlgorithm, setDiagonal,
+    pointerDown, pointerEnter, pointerUp, snapshot, restore,
   };
 }

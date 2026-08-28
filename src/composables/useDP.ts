@@ -1,158 +1,44 @@
 import { ref, computed } from 'vue';
-import { dpAlgorithms, DPAction } from '../utils/dpAlgorithms';
+import { useTimeline } from '../engine/useTimeline';
+import { defaultInputs, parseInputs } from '../engine/types';
+import type { InputValues } from '../engine/types';
+import { DP, DEFAULT_DP, buildDPFrames } from '../algorithms/dp';
+import type { DPFrame, DPTable } from '../algorithms/dp';
 
-export type CellState = 'default' | 'eval' | 'set' | 'source';
+const EMPTY_U8 = new Uint8Array(0);
 
-export interface DPCell {
-  row: number;
-  col: number;
-  value: string;
-  state: CellState;
-  id: string;
-}
-
-export interface DPVisualizationFrame {
-  matrix: DPCell[][];
-  variables: Record<string, any>;
-  activeLine?: number;
-}
-
+/** Parameterised DP table + its timeline. Inputs are re-validated on every rebuild. */
 export function useDP() {
-  const matrix = ref<DPCell[][]>([]);
-  const timeline = ref<DPVisualizationFrame[]>([]);
-  const currentFrameIndex = ref(0);
-  
-  const isPlaying = ref(false);
-  let playInterval: number | null = null;
-  const executionTime = ref(0);
-  let cachedAlgo = '';
+  const tl = useTimeline<DPFrame>(150);
+  const algorithmId = ref(DEFAULT_DP);
+  const inputs = ref<InputValues>(defaultInputs(DP[DEFAULT_DP].inputs));
+  const error = ref<string | null>(null);
+  const table = ref<DPTable | null>(null);
 
-  const currentVariables = computed(() => timeline.value[currentFrameIndex.value]?.variables || {});
-  const activeLine = computed(() => timeline.value[currentFrameIndex.value]?.activeLine || null);
+  const meta = computed(() => DP[algorithmId.value]);
+  const values = computed(() => tl.current.value?.values ?? []);
+  const states = computed(() => tl.current.value?.states ?? EMPTY_U8);
+  const variables = computed(() => tl.current.value?.variables ?? {});
+  const activeLine = computed(() => tl.current.value?.line || null);
 
-  const applyFrame = (frame: DPVisualizationFrame) => {
-    if (!frame) return;
-    matrix.value = frame.matrix;
+  const rebuild = () => {
+    const parsed = parseInputs(meta.value.inputs, inputs.value);
+    if (!parsed.ok) { error.value = parsed.error; table.value = null; tl.setFrames([]); return; }
+    const t = meta.value.setup(parsed.data);
+    if ('error' in t) { error.value = t.error; table.value = null; tl.setFrames([]); return; }
+    error.value = null;
+    table.value = t;
+    tl.setFrames(buildDPFrames(meta.value, t));
   };
 
-  const registerBaseFrame = () => {
-    timeline.value = [{ matrix: matrix.value.map(r => r.map(c => ({...c}))), variables: {} }];
-    currentFrameIndex.value = 0;
-    executionTime.value = 0;
+  const setAlgorithm = (id: string) => {
+    if (!DP[id]) return;
+    algorithmId.value = id;
+    inputs.value = defaultInputs(DP[id].inputs);
+    rebuild();
   };
 
-  const initMatrix = (rows: number, cols: number) => {
-    pause();
-    const newMatrix: DPCell[][] = [];
-    for (let r = 0; r < rows; r++) {
-      const currentRow: DPCell[] = [];
-      for (let c = 0; c < cols; c++) {
-        currentRow.push({ row: r, col: c, value: '', state: 'default', id: `${r}-${c}` });
-      }
-      newMatrix.push(currentRow);
-    }
-    matrix.value = newMatrix;
-    registerBaseFrame();
-  };
+  rebuild();
 
-  const prepareAlgorithm = (algo: string, args: any[]) => {
-    const algoFn = dpAlgorithms[algo as keyof typeof dpAlgorithms];
-    if (!algoFn) return false;
-
-    const startTime = performance.now();
-    const frames: DPVisualizationFrame[] = [];
-    
-    let currentMatrix = timeline.value[0].matrix.map(row => row.map(cell => ({...cell})));
-    frames.push({ matrix: currentMatrix, variables: {} });
-    
-    // @ts-ignore
-    const generator = algoFn(...args);
-    let lastLine = 0;
-
-    let iter = generator.next();
-    while(!iter.done) {
-      const action = iter.value as DPAction;
-      if (action.highlightLine) lastLine = action.highlightLine;
-      const nextMatrix = currentMatrix.map(row => row.map(cell => ({...cell, state: 'default' as CellState})));
-      
-      const targetCell = nextMatrix[action.row - 1][action.col - 1]; // Offset index if 1-based logic
-      
-      if (action.compareSource) {
-        action.compareSource.forEach(src => {
-          if (nextMatrix[src.r - 1] && nextMatrix[src.r - 1][src.c - 1]) {
-             nextMatrix[src.r - 1][src.c - 1].state = 'source';
-          }
-        });
-      }
-
-      if (targetCell) {
-        targetCell.value = String(action.value);
-        targetCell.state = 'set';
-      }
-
-      frames.push({
-        matrix: nextMatrix,
-        variables: action.variables || {},
-        activeLine: lastLine
-      });
-
-      currentMatrix = nextMatrix;
-      iter = generator.next();
-    }
-
-    executionTime.value = Math.floor(performance.now() - startTime);
-    timeline.value = frames;
-    cachedAlgo = algo;
-    currentFrameIndex.value = 0;
-    applyFrame(frames[0]);
-    return true;
-  };
-
-  const step = (algo: string, args: any[]) => {
-    if (timeline.value.length <= 1 || cachedAlgo !== algo) {
-      if (!prepareAlgorithm(algo, args)) return;
-    }
-    if (currentFrameIndex.value < timeline.value.length - 1) {
-      currentFrameIndex.value++;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    } else pause();
-  };
-
-  const stepBack = () => {
-    pause();
-    if (currentFrameIndex.value > 0) {
-      currentFrameIndex.value--;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    }
-  };
-
-  const play = (algo: string, args: any[]) => {
-    if (timeline.value.length <= 1 || cachedAlgo !== algo) {
-      if (!prepareAlgorithm(algo, args)) return;
-    }
-    isPlaying.value = true;
-    
-    playInterval = window.setInterval(() => {
-      if (!isPlaying.value || currentFrameIndex.value >= timeline.value.length - 1) {
-        clearInterval(playInterval!);
-        isPlaying.value = false;
-        return;
-      }
-      currentFrameIndex.value++;
-      applyFrame(timeline.value[currentFrameIndex.value]);
-    }, 100) as unknown as number;
-  };
-
-  const pause = () => {
-    isPlaying.value = false;
-    if (playInterval !== null) {
-        clearInterval(playInterval);
-        playInterval = null;
-    }
-  };
-
-  return {
-    matrix, executionTime, isPlaying, currentVariables, activeLine,
-    initMatrix, step, stepBack, play, pause, prepareAlgorithm
-  };
+  return { ...tl, algorithmId, inputs, error, table, meta, values, states, variables, activeLine, rebuild, setAlgorithm };
 }

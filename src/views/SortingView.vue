@@ -1,125 +1,64 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useSorting } from '../composables/useSorting';
+import { useKeyboard } from '../engine/useKeyboard';
+import { SORTING_LIST } from '../algorithms/sorting';
+import PageHeader from '../components/common/PageHeader.vue';
+import AlgorithmSelect from '../components/common/AlgorithmSelect.vue';
+import PlaybackControls from '../components/common/PlaybackControls.vue';
+import MetricsBar from '../components/common/MetricsBar.vue';
+import WatchWindow from '../components/common/WatchWindow.vue';
+import PseudocodePanel from '../components/common/PseudocodePanel.vue';
+import ComplexityCard from '../components/common/ComplexityCard.vue';
 import SortingCanvas from '../components/sorting/SortingCanvas.vue';
-import AppControls from '../components/layout/AppControls.vue';
-import MetricsDashboard from '../components/layout/MetricsDashboard.vue';
-import WatchWindow from '../components/layout/WatchWindow.vue';
-import PseudocodePanel from '../components/layout/PseudocodePanel.vue';
-import { algorithmPseudocode } from '../utils/pseudocode';
+import SortingLegend from '../components/sorting/SortingLegend.vue';
 
-const { 
-  array, comparisons, swaps, executionTime, isPlaying, currentVariables, activeLine,
-  generateArray, step, stepBack, play, pause, resetGenerator 
+const {
+  algorithmId, meta, values, states, comparisons, swaps, writes, variables, activeLine,
+  index, frameCount, isPlaying, speed,
+  play, pause, toggle, step, stepBack, reset, seek, generateArray, setAlgorithm,
 } = useSorting();
 
-const currentAlgorithm = ref('bubble');
-const arraySize = ref(50);
-const animationSpeed = ref(50);
+const size = ref(60);
+onMounted(() => generateArray(size.value));
 
-const pseudoCode = computed(() => algorithmPseudocode[currentAlgorithm.value] || []);
-
-onMounted(() => {
-  generateArray(arraySize.value);
-});
-
-const onGenerate = () => {
-  generateArray(arraySize.value);
-};
-
-const onChangeAlgorithm = (val: string) => {
-  currentAlgorithm.value = val;
-  resetGenerator();
-};
-
-const onChangeSize = (val: number) => {
-  arraySize.value = val;
-  onGenerate();
-};
-
-const onChangeSpeed = (val: number) => {
-  animationSpeed.value = val;
-};
-
-const onPlay = () => {
-  play(currentAlgorithm.value, animationSpeed.value);
-};
-
-const onStep = () => {
-  step(currentAlgorithm.value);
-};
-
-const onStepBack = () => {
-  stepBack();
-};
-
+useKeyboard({ toggle, step, stepBack, reset, toStart: () => seek(0), toEnd: () => seek(Infinity) });
 </script>
 
 <template>
-  <div class="view-container">
-    <div class="header">
-      <h1>Sorting Algorithms Visualizer</h1>
-      <p class="description">Select an algorithm and visualize its mechanics step by step or continuously.</p>
+  <div class="view">
+    <PageHeader title="Sorting" subtitle="Comparison and non-comparison sorts on a random integer array. Every step is recorded, so the timeline can be scrubbed in either direction." />
+
+    <div class="panel toolbar">
+      <AlgorithmSelect :model-value="algorithmId" :options="SORTING_LIST" :disabled="isPlaying" @update:model-value="setAlgorithm" />
+      <label class="field">
+        <span>Array size · {{ size }}</span>
+        <input type="range" class="range" min="5" max="200" v-model.number="size" :disabled="isPlaying" @change="generateArray(size)" />
+      </label>
+      <button class="btn" :disabled="isPlaying" @click="generateArray(size)">New array</button>
     </div>
 
-    <AppControls 
-      :isPlaying="isPlaying"
-      :algorithm="currentAlgorithm"
-      @generate="onGenerate"
-      @update-algorithm="onChangeAlgorithm"
-      @update-size="onChangeSize"
-      @update-speed="onChangeSpeed"
-      @play="onPlay"
-      @pause="pause"
-      @step="onStep"
-      @step-back="onStepBack"
-      @reset="resetGenerator"
+    <PlaybackControls
+      :is-playing="isPlaying" :index="index" :frame-count="frameCount" :speed="speed"
+      @play="play" @pause="pause" @step="step" @step-back="stepBack" @reset="reset" @seek="seek" @update:speed="speed = $event"
     />
-    
-    <div class="dashboard-layout">
-      <div class="main-visual">
-         <MetricsDashboard 
-          metric1Label="Comparisons"
-          :metric1Value="comparisons"
-          metric2Label="Swaps"
-          :metric2Value="swaps"
-          :timeMs="executionTime"
-        />
-        <SortingCanvas :bars="array" />
+
+    <div class="workspace">
+      <div class="workspace-main">
+        <MetricsBar :metrics="[
+          { label: 'Comparisons', value: comparisons },
+          { label: 'Swaps', value: swaps },
+          { label: 'Writes', value: writes },
+          { label: 'n', value: values.length },
+        ]" />
+        <SortingCanvas :values="values" :states="states" />
+        <SortingLegend />
       </div>
-      <div class="side-panels">
-         <WatchWindow :variables="currentVariables" />
-         <PseudocodePanel :code="pseudoCode" :activeLine="activeLine" />
+      <div class="workspace-side">
+        <ComplexityCard :meta="meta" />
+        <WatchWindow :variables="variables" />
+        <PseudocodePanel :code="meta.pseudocode" :active-line="activeLine" />
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.view-container {
-  display: flex;
-  flex-direction: column;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-.header { margin-bottom: 20px; }
-h1 { margin-top: 0; margin-bottom: 8px; color: #c9d1d9; font-size: 32px; }
-.description { color: #8b949e; margin: 0; font-size: 16px; }
-
-.dashboard-layout {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-}
-.main-visual {
-  flex: 3;
-  display: flex;
-  flex-direction: column;
-}
-.side-panels {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-</style>

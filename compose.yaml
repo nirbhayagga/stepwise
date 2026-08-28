@@ -1,0 +1,11 @@
+# Self-hosting: `docker compose up -d` pulls the image published by CI.
+# Put a reverse proxy (Caddy / Traefik / nginx) in front for TLS and the
+# subdomain; the container itself serves plain HTTP on port 80.
+services:
+  stepwise:
+    image: ghcr.io/nirbhayagga/stepwise:latest
+    build: .              # `docker compose up --build` builds locally instead
+    container_name: stepwise
+    restart: unless-stopped
+    ports:
+      - "8080:80"

@@ -1,0 +1,22 @@
+// Cloudflare Workers (static assets) configuration, used by Workers Builds
+// (`npx wrangler deploy`) and by `npm run deploy`. Assets-only: no Worker
+// script, Cloudflare serves dist/ directly and honours public/_headers.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stepwise",
+  "compatibility_date": "2026-08-29",
+  // Only the custom domain is exposed: the *.workers.dev and preview URLs are
+  // off so a Cloudflare Access policy on stepwise.nirbhay.dev cannot be
+  // bypassed.
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  // Custom domain. Requires the nirbhay.dev zone to be on this Cloudflare
+  // account; remove this block to fall back to the *.workers.dev URL only.
+  "routes": [
+    { "pattern": "stepwise.nirbhay.dev", "custom_domain": true }
+  ]
+}

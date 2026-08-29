@@ -11,7 +11,8 @@
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "lighthouse": "lhci autorun",
-    "docker:build": "docker build -t stepwise ."
+    "docker:build": "docker build -t stepwise .",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "vue": "^3.4.29",
@@ -23,6 +24,7 @@
     "@vitejs/plugin-vue": "^5.0.5",
     "typescript": "^5.2.2",
     "vite": "^5.3.1",
-    "vue-tsc": "^2.0.21"
+    "vue-tsc": "^2.0.21",
+    "wrangler": "^4.127.1"
   }
 }

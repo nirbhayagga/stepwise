@@ -22,3 +22,6 @@ test-results/
 playwright-report/
 blob-report/
 .lighthouseci/
+
+# Wrangler local state
+.wrangler/

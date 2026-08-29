@@ -32,7 +32,7 @@ npm run build      # type-check (vue-tsc) + production build into dist/
 npm run preview    # serve dist/ locally
 ```
 
-`dist/` is fully static and uses hash routing with a relative base, so it can be hosted from any static host or sub-path without rewrite rules. Production is Cloudflare Pages (build command `npm run build`, output `dist`, `NODE_VERSION=22`); `public/_headers` sets cache and security headers there. A container image (`Dockerfile`, `compose.yaml`) is published to GHCR by CI for self-hosting.
+`dist/` is fully static and uses hash routing with a relative base, so it can be hosted from any static host or sub-path without rewrite rules. Production is a Cloudflare Worker serving static assets (`wrangler.jsonc`; Workers Builds runs `npm run build` then `npx wrangler deploy`, or `npm run deploy` locally); `public/_headers` sets cache and security headers there. A container image (`Dockerfile`, `compose.yaml`) is published to GHCR by CI for self-hosting.
 
 ## Adding an algorithm
 

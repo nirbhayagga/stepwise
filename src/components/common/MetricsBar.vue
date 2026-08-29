@@ -17,6 +17,6 @@ const fmt = (v: number | string) => (typeof v === 'number' ? v.toLocaleString() 
 .metrics { display: flex; gap: 24px; flex-wrap: wrap; padding: 6px 2px; }
 .metric { display: flex; flex-direction: column; gap: 2px; }
 .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
-.value { font-size: 18px; color: var(--text); font-weight: 500; }
+.value { font-size: 18px; color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; min-width: 5ch; }
 .value small { font-size: 12px; color: var(--text-muted); }
 </style>

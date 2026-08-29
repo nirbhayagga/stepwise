@@ -72,13 +72,60 @@ test('pathfinding: generate a maze, search, draw a wall', async ({ page }) => {
   expect(await page.locator('.node.path').count()).toBeGreaterThan(2);
   await expect(page.locator('.metric', { hasText: 'Path length' }).locator('.value')).not.toHaveText(/^0/);
 
-  // Drawing invalidates the search and paints a wall.
+  // Drawing invalidates the search and paints walls along the drag.
   await page.getByRole('button', { name: 'Clear walls' }).click();
-  const cell = page.locator('.node').nth(3);
-  await cell.dispatchEvent('mousedown');
-  await page.locator('.grid').dispatchEvent('mouseup');
-  await expect(cell).toHaveClass(/wall/);
+  const a = page.locator('.node').nth(3);
+  const b = page.locator('.node').nth(4);
+  const ba = (await a.boundingBox())!, bb = (await b.boundingBox())!;
+  await page.mouse.move(ba.x + ba.width / 2, ba.y + ba.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2, { steps: 3 });
+  await page.mouse.up();
+  await expect(a).toHaveClass(/wall/);
+  await expect(b).toHaveClass(/wall/);
   await expect(stepCounter(page)).toContainText('—');
+});
+
+test('playback never scrolls the page (regression: pseudocode auto-scroll)', async ({ page }) => {
+  await page.setViewportSize({ width: 1300, height: 520 });
+  await page.goto('/#/sort');
+  await page.getByLabel('Speed').fill('90');
+  await page.getByLabel('Speed').blur(); // shortcuts ignore focused form controls
+  const content = page.locator('main.content');
+  await content.evaluate(el => { el.scrollTop = 400; });
+  const before = await content.evaluate(el => el.scrollTop);
+  expect(before).toBeGreaterThan(100);
+  await page.keyboard.press(' ');
+  await page.waitForTimeout(1200);
+  await expect(stepCounter(page).locator('.num')).not.toHaveText('0');
+  expect(await content.evaluate(el => el.scrollTop)).toBe(before);
+});
+
+test.describe('mobile viewport', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'sandbox']) {
+    test(`/${route} fits the screen width`, async ({ page }) => {
+      const errors = watchConsole(page);
+      await page.goto(`/#/${route}`);
+      await expect(page.locator('h1')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+      const content = page.locator('main.content');
+      expect(await content.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test('touch draws walls and playback works', async ({ page }) => {
+    await page.goto('/#/path');
+    const cell = page.locator('.node').nth(5);
+    await cell.scrollIntoViewIfNeeded();
+    const box = (await cell.boundingBox())!;
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(cell).toHaveClass(/wall/);
+    await page.getByRole('button', { name: 'Play' }).tap();
+    await expect(stepCounter(page).locator('.num')).not.toHaveText('0');
+  });
 });
 
 test('pathfinding compare: the right grid mirrors the left and both find a path', async ({ page }) => {

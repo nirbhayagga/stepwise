@@ -16,14 +16,14 @@ const bars = computed(() =>
 </script>
 
 <template>
-  <div class="panel canvas" :style="{ height: (height ?? 420) + 'px' }">
+  <div class="panel canvas" :style="{ height: `min(${height ?? 420}px, 55vh)` }">
     <div v-for="b in bars" :key="b.i" class="bar" :class="b.cls" :style="{ height: b.h + '%' }"></div>
   </div>
 </template>
 
 <style scoped>
-.canvas { display: flex; align-items: flex-end; gap: 1px; padding: 16px 16px 0; overflow: hidden; }
-.bar { flex: 1 1 0; min-width: 1px; background: var(--s-default); transition: height 0.08s linear; }
+.canvas { display: flex; align-items: flex-end; gap: 1px; padding: 16px 16px 0; overflow: hidden; contain: strict; min-height: 220px; }
+.bar { flex: 1 1 0; min-width: 1px; background: var(--s-default); }
 .bar.compare { background: var(--s-compare); }
 .bar.write { background: var(--s-write); }
 .bar.sorted { background: var(--s-sorted); }

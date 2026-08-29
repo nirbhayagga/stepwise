@@ -11,8 +11,8 @@ import GridDisplay from '../components/pathfinding/GridDisplay.vue';
 import PathfindingLegend from '../components/pathfinding/PathfindingLegend.vue';
 import TerrainToolbar from '../components/pathfinding/TerrainToolbar.vue';
 
-const a = reactive(usePathfinding());
-const b = reactive(usePathfinding());
+const a = reactive(usePathfinding(21, window.innerWidth < 700 ? 31 : 51));
+const b = reactive(usePathfinding(21, window.innerWidth < 700 ? 31 : 51));
 const panes = [a, b];
 
 const isPlaying = computed(() => a.isPlaying || b.isPlaying);

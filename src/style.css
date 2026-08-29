@@ -79,6 +79,11 @@ code, pre, .mono { font-family: var(--font-mono); font-size: 12.5px; }
   .workspace { grid-template-columns: 1fr; }
   .split { grid-template-columns: 1fr; }
 }
+@media (max-width: 800px) {
+  .view { gap: 10px; }
+  .toolbar { padding: 8px 10px; gap: 8px 12px; }
+  h1 { font-size: 18px; }
+}
 
 .panel {
   background: var(--surface);
@@ -151,6 +156,7 @@ code, pre, .mono { font-family: var(--font-mono); font-size: 12.5px; }
 
 .select, .input {
   font: inherit;
+  max-width: 100%;
   font-size: 13px;
   color: var(--text);
   background: var(--surface-2);
@@ -169,6 +175,8 @@ input[type='range'].range {
   -webkit-appearance: none;
   appearance: none;
   width: 140px;
+  max-width: 100%;
+  touch-action: pan-y;
   height: 18px;
   background: transparent;
   margin: 0;

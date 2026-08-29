@@ -28,7 +28,7 @@ const fmt = (v: unknown): string => {
 </template>
 
 <style scoped>
-.vars { padding: 6px 12px; max-height: 190px; overflow-y: auto; min-height: 60px; }
+.vars { padding: 6px 12px; height: 190px; overflow-y: auto; overscroll-behavior: contain; }
 .empty { padding: 6px 0; }
 table { border-collapse: collapse; width: 100%; }
 td { padding: 2px 0; vertical-align: top; font-size: 12.5px; }

@@ -12,7 +12,7 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: InputValues): void; (e: '
       <input
         class="input mono"
         :class="{ invalid: !!error }"
-        :style="{ width: s.kind === 'int' ? '70px' : s.kind === 'ints' ? '300px' : '190px' }"
+        :style="{ width: s.kind === 'int' ? '70px' : s.kind === 'ints' ? '300px' : '190px', maxWidth: '100%' }"
         :value="modelValue[s.key]"
         :disabled="disabled"
         spellcheck="false"

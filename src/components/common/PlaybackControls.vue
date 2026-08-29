@@ -76,6 +76,6 @@ const fmt = (n: number) => n.toLocaleString();
 .scrub { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 240px; }
 .scrub-range { flex: 1; width: auto; }
 .counter { font-size: 12px; color: var(--text-muted); display: flex; gap: 6px; white-space: nowrap; }
-.counter .num { color: var(--text); min-width: 5ch; text-align: right; }
+.counter .num { color: var(--text); min-width: 5ch; text-align: right; font-variant-numeric: tabular-nums; }
 .speed .range { width: 110px; }
 </style>

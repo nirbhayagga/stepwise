@@ -39,7 +39,7 @@ const groups = computed(() => {
 </template>
 
 <style scoped>
-.app { display: flex; height: 100vh; }
+.app { display: flex; height: 100vh; height: 100dvh; }
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
@@ -60,11 +60,36 @@ const groups = computed(() => {
 }
 .nav-link {
   display: block; padding: 5px 8px; border-radius: var(--radius);
-  color: var(--text-muted); font-size: 13px;
+  color: var(--text-muted); font-size: 13px; white-space: nowrap;
 }
 .nav-link:hover { color: var(--text); background: var(--surface-2); }
 .nav-link.router-link-active { color: var(--accent-strong); background: var(--accent-bg); }
 .sidebar-footer { margin-top: auto; padding: 14px 18px 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
 .hint { font-size: 11.5px; color: var(--text-faint); display: flex; gap: 6px; align-items: center; }
-.content { flex: 1; padding: 20px 24px; overflow-y: auto; min-width: 0; }
+.content { flex: 1; padding: 20px 24px; overflow-y: auto; min-width: 0; -webkit-overflow-scrolling: touch; }
+
+/* Narrow screens: the sidebar becomes a horizontally scrolling top bar. */
+@media (max-width: 800px) {
+  .app { flex-direction: column; }
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 10px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .sidebar::-webkit-scrollbar { display: none; }
+  .brand { padding: 0 10px 0 0; margin: 0 6px 0 0; border-bottom: none; border-right: 1px solid var(--border); }
+  .brand-sub { display: none; }
+  .nav-group { display: flex; align-items: center; padding: 0 4px; }
+  .nav-group-title { padding: 0 6px 0 4px; white-space: nowrap; }
+  .nav-link { padding: 4px 8px; }
+  .sidebar-footer { display: none; }
+  .content { padding: 12px; }
+}
 </style>

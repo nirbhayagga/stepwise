@@ -13,7 +13,7 @@ import GridDisplay from '../components/pathfinding/GridDisplay.vue';
 import PathfindingLegend from '../components/pathfinding/PathfindingLegend.vue';
 import TerrainToolbar from '../components/pathfinding/TerrainToolbar.vue';
 
-const p = usePathfinding();
+const p = usePathfinding(21, window.innerWidth < 700 ? 31 : 51);
 const {
   rows, cols, cells, start, target, states, algorithmId, diagonal, effectiveDiagonal, drawMode, meta,
   explored, frontier, pathLength, pathCost, variables, activeLine,

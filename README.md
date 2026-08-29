@@ -56,3 +56,7 @@ export const bubbleSort: SortingAlgorithm = {
 ```
 
 `line` values are 1-based indices into `pseudocode`; a development-mode check warns when a yielded line is out of range.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

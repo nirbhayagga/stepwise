@@ -2,29 +2,58 @@
 import { computed } from 'vue';
 import type { TreeNode } from '../../algorithms/tree';
 
-const props = defineProps<{ root: TreeNode | null }>();
+const props = defineProps<{ root: TreeNode | null; forest?: TreeNode[] | null }>();
 
-interface Placed { id: number; key: number; x: number; y: number; state: string; color?: string; height?: number }
+interface Placed { id: number; text: string; label: string; x: number; y: number; state: string; color?: string }
 interface Link { id: string; x1: number; y1: number; x2: number; y2: number }
 
 const W = 1000, H = 560, R = 18, PAD = 40, LEVEL = 78;
 
-/** In-order x placement: every node gets its own column, so siblings never overlap. */
+/**
+ * Binary nodes are placed by in-order column (a lone left child leans left);
+ * nodes with a `children` array centre over their children. Multiple roots
+ * (a forest) share the column axis with a gap between them.
+ */
 const layout = computed(() => {
+  const roots = props.forest ?? (props.root ? [props.root] : []);
   const nodes: Placed[] = [];
   const links: Link[] = [];
   let col = 0, depthMax = 0;
-  const walk = (n: TreeNode | null, depth: number): Placed | null => {
-    if (!n) return null;
-    const l = walk(n.left, depth + 1);
-    const me: Placed = { id: n.id, key: n.key, x: col++, y: depth, state: n.state, color: n.color, height: n.height };
-    nodes.push(me);
+
+  const place = (n: TreeNode, depth: number, x: number): Placed => {
+    const p: Placed = {
+      id: n.id,
+      text: n.text ?? String(n.key),
+      label: n.label ?? (n.height !== undefined ? `h=${n.height}` : ''),
+      x, y: depth, state: n.state, color: n.color,
+    };
+    nodes.push(p);
     depthMax = Math.max(depthMax, depth);
-    const r = walk(n.right, depth + 1);
-    for (const c of [l, r]) if (c) links.push({ id: `${me.id}-${c.id}`, x1: me.x, y1: me.y, x2: c.x, y2: c.y });
+    return p;
+  };
+  const link = (a: Placed, b: Placed) => links.push({ id: `${a.id}-${b.id}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+
+  const walkBinary = (n: TreeNode, depth: number): Placed => {
+    const l = n.left ? walkBinary(n.left, depth + 1) : null;
+    const me = place(n, depth, col++);
+    const r = n.right ? walkBinary(n.right, depth + 1) : null;
+    if (l) link(me, l);
+    if (r) link(me, r);
     return me;
   };
-  walk(props.root, 0);
+  const walkNary = (n: TreeNode, depth: number): Placed => {
+    const kids = (n.children ?? []).map(c => walkNary(c, depth + 1));
+    const x = kids.length ? (kids[0].x + kids[kids.length - 1].x) / 2 : col++;
+    const me = place(n, depth, x);
+    for (const k of kids) link(me, k);
+    return me;
+  };
+
+  roots.forEach((r, i) => {
+    if (i > 0) col++;
+    if (r.children !== undefined) walkNary(r, 0); else walkBinary(r, 0);
+  });
+
   const cols = Math.max(1, col);
   const stepX = Math.min(70, (W - 2 * PAD) / Math.max(1, cols - 1 || 1));
   const stepY = Math.min(LEVEL, (H - 2 * PAD) / Math.max(1, depthMax || 1));
@@ -45,8 +74,8 @@ const layout = computed(() => {
       <line v-for="l in layout.links" :key="l.id" :x1="l.x1" :y1="l.y1" :x2="l.x2" :y2="l.y2" class="link" />
       <g v-for="n in layout.nodes" :key="n.id" :class="['node', n.state, n.color]" :transform="`translate(${n.x}, ${n.y})`">
         <circle :r="R" />
-        <text dominant-baseline="central" text-anchor="middle">{{ n.key }}</text>
-        <text v-if="n.height !== undefined" class="meta" :y="R + 12" text-anchor="middle">h={{ n.height }}</text>
+        <text dominant-baseline="central" text-anchor="middle">{{ n.text }}</text>
+        <text v-if="n.label" class="meta" :y="R + 12" text-anchor="middle">{{ n.label }}</text>
       </g>
       <text v-if="!layout.nodes.length" :x="W / 2" :y="H / 2" text-anchor="middle" class="empty">empty tree</text>
     </svg>
@@ -64,6 +93,7 @@ svg { width: 100%; height: auto; display: block; }
 .node.black circle { fill: #11151b; stroke: var(--text-muted); }
 .node.visiting circle { fill: var(--s-compare); stroke: var(--s-compare); }
 .node.visiting text { fill: #14120a; }
+.node.visiting .meta { fill: #3a3520; }
 .node.inserted circle { fill: var(--s-sorted); stroke: var(--s-sorted); }
 .node.inserted text { fill: #0d1a10; }
 .node.rotating circle { fill: var(--s-mark); stroke: var(--s-mark); }

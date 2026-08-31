@@ -11,6 +11,11 @@ export const NAV: NavEntry[] = [
   { path: '/dp', name: 'dp', label: 'Tables', group: 'Dynamic Programming' },
   { path: '/tree', name: 'tree', label: 'Binary Trees', group: 'Trees & Graphs' },
   { path: '/graph', name: 'graph', label: 'Graphs', group: 'Trees & Graphs' },
+  { path: '/strings', name: 'strings', label: 'Pattern Matching', group: 'Strings' },
+  { path: '/hash', name: 'hash', label: 'Hash Tables', group: 'Data Structures' },
+  { path: '/geometry', name: 'geometry', label: 'Hulls & Pairs', group: 'Geometry' },
+  { path: '/backtracking', name: 'backtracking', label: 'N-Queens · Sudoku', group: 'Backtracking' },
+  { path: '/numbers', name: 'numbers', label: 'Sieve', group: 'Numbers' },
   { path: '/sandbox', name: 'sandbox', label: 'Sandbox', group: 'Custom' },
 ]
 
@@ -22,6 +27,11 @@ const views: Record<string, () => Promise<unknown>> = {
   dp: () => import('../views/DPView.vue'),
   tree: () => import('../views/TreeView.vue'),
   graph: () => import('../views/GraphView.vue'),
+  strings: () => import('../views/StringsView.vue'),
+  hash: () => import('../views/HashingView.vue'),
+  geometry: () => import('../views/GeometryView.vue'),
+  backtracking: () => import('../views/BacktrackingView.vue'),
+  numbers: () => import('../views/NumbersView.vue'),
   sandbox: () => import('../views/SandboxView.vue'),
 }
 

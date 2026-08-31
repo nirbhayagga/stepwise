@@ -14,7 +14,7 @@ import StateLegend from '../components/common/StateLegend.vue';
 import TreeCanvas from '../components/tree/TreeCanvas.vue';
 
 const {
-  algorithmId, inputs, error, meta, root, output, variables, activeLine,
+  algorithmId, inputs, error, meta, root, forest, output, variables, activeLine,
   index, frameCount, isPlaying, speed,
   play, pause, toggle, step, stepBack, reset, seek, rebuild, setAlgorithm,
 } = useTree();
@@ -47,7 +47,7 @@ const legend = computed(() => [
 
     <div class="workspace">
       <div class="workspace-main">
-        <TreeCanvas :root="root" />
+        <TreeCanvas :root="root" :forest="forest" />
         <div v-if="output.length" class="panel output mono">
           <span class="eyebrow">Output</span>
           <span v-for="(k, i) in output" :key="i" class="tok">{{ k }}</span>

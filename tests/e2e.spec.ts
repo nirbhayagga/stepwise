@@ -3,7 +3,7 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 
-const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'sandbox'];
+const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'numbers', 'sandbox'];
 
 /** Fail the test on any uncaught exception or console.error. */
 const watchConsole = (page: Page) => {
@@ -101,10 +101,39 @@ test('playback never scrolls the page (regression: pseudocode auto-scroll)', asy
   expect(await content.evaluate(el => el.scrollTop)).toBe(before);
 });
 
+test('new modules produce results at the end of their timelines', async ({ page }) => {
+  // Hash navigation swaps lazily-loaded views in place, so wait for each
+  // view's canvas before using keyboard shortcuts.
+  await page.goto('/#/strings');
+  await page.locator('.cell').first().waitFor();
+  await page.keyboard.press('End');
+  await expect(page.locator('.metric', { hasText: 'Occurrences' }).locator('.value')).not.toHaveText('0');
+
+  await page.goto('/#/hash');
+  await page.locator('.slot').first().waitFor();
+  await page.keyboard.press('End');
+  await expect(page.locator('.metric', { hasText: 'Stored' }).locator('.value')).toHaveText('8');
+
+  await page.goto('/#/geometry');
+  await page.locator('.pt').first().waitFor();
+  await page.keyboard.press('End');
+  expect(await page.locator('.pt.hull').count()).toBeGreaterThan(2);
+
+  await page.goto('/#/backtracking');
+  await page.locator('.cell').first().waitFor();
+  await page.keyboard.press('End');
+  await expect(page.locator('.cell.fixed')).toHaveCount(6);
+
+  await page.goto('/#/numbers');
+  await page.locator('.cell').first().waitFor();
+  await page.keyboard.press('End');
+  await expect(page.locator('.cell.placed')).toHaveCount(30); // π(120)
+});
+
 test.describe('mobile viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'sandbox']) {
+  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'numbers', 'sandbox']) {
     test(`/${route} fits the screen width`, async ({ page }) => {
       const errors = watchConsole(page);
       await page.goto(`/#/${route}`);

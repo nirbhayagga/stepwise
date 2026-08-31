@@ -16,6 +16,8 @@ export type SortGenerator = (a: number[]) => Generator<SortAction, void, unknown
 
 export interface SortingAlgorithm extends AlgorithmMeta {
   run: SortGenerator;
+  /** Maximum input length; longer inputs are truncated by the frame builder. */
+  cap?: number;
 }
 
 export const SORT_STATE = { default: 0, compare: 1, write: 2, sorted: 3, mark: 4 } as const;
@@ -34,8 +36,9 @@ export function randomValues(size: number, min = 5, max = 100): number[] {
 
 /** Run a sorting generator to completion and record one compact frame per step. */
 export function buildSortFrames(meta: SortingAlgorithm, initial: number[]): SortFrame[] {
-  const n = initial.length;
-  const a = initial.slice();
+  const capped = meta.cap !== undefined ? initial.slice(0, meta.cap) : initial;
+  const n = capped.length;
+  const a = capped.slice();
   const sortedMask = new Uint8Array(n);
   const frames: SortFrame[] = [];
   let comparisons = 0, swaps = 0, writes = 0, line = 0;

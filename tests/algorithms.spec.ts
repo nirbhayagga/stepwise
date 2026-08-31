@@ -25,11 +25,12 @@ test.describe('sorting', () => {
       for (const n of [0, 1, 2, 7, 60]) {
         const rnd = mulberry32(n * 7 + 1);
         const input = Array.from({ length: n }, () => 5 + Math.floor(rnd() * 96));
+        const effective = algo.cap !== undefined ? input.slice(0, algo.cap) : input;
         const frames = buildSortFrames(algo, input);
         const last = frames[frames.length - 1];
-        expect(Array.from(last.values)).toEqual(input.slice().sort((a, b) => a - b));
+        expect(Array.from(last.values)).toEqual(effective.slice().sort((a, b) => a - b));
         expect(Array.from(last.states).every(s => s === SORT_STATE.sorted)).toBe(true);
-        for (const f of frames) expect(f.values.length).toBe(n);
+        for (const f of frames) expect(f.values.length).toBe(effective.length);
         linesInRange(algo, frames);
       }
     });
@@ -98,7 +99,7 @@ test.describe('pathfinding', () => {
 });
 
 test.describe('dynamic programming', () => {
-  const expected: Record<string, number> = { knapsack: 9, lcs: 4, 'edit-distance': 3, 'coin-change': 3, lis: 4, 'matrix-chain': 15125 };
+  const expected: Record<string, number> = { knapsack: 9, lcs: 4, 'edit-distance': 3, 'coin-change': 3, lis: 4, 'matrix-chain': 15125, 'floyd-warshall': 6 };
   for (const algo of DP_LIST) {
     test(`${algo.id} computes the reference answer for its default input`, () => {
       const parsed = parseInputs(algo.inputs, defaultInputs(algo.inputs));
@@ -173,7 +174,7 @@ test.describe('graphs', () => {
 
       const weights: Record<string, number> = {};
       for (const algo of GRAPH_LIST) {
-        const gg = algo.kind === 'dag' ? generateGraph(12, 0.5, seed, 'dag') : g;
+        const gg = algo.kind === 'undirected' ? g : generateGraph(12, 0.5, seed, algo.kind);
         const frames = buildGraphFrames(algo, gg, 0);
         linesInRange(algo, frames);
         const last = frames[frames.length - 1];
@@ -185,6 +186,53 @@ test.describe('graphs', () => {
           const pos = new Map(last.output.map((v, i) => [v, i]));
           for (const e of gg.edges) expect(pos.get(e.u)!).toBeLessThan(pos.get(e.v)!);
         }
+        if (algo.id === 'bellman-ford') {
+          const dist = new Array(12).fill(Infinity); dist[0] = 0;
+          for (let k = 0; k < 12; k++) for (const e of gg.edges) if (dist[e.u] + e.w < dist[e.v]) dist[e.v] = dist[e.u] + e.w;
+          const got = (last.variables.dist as string[]).map(v => (v === '∞' ? Infinity : Number(v)));
+          expect(got).toEqual(dist);
+          expect(last.variables['negative cycle']).toBe(false);
+        }
+        if (algo.id === 'tarjan') {
+          // Reference: Kosaraju.
+          const n2 = gg.nodes.length;
+          const fwd = gg.nodes.map(() => [] as number[]), rev = gg.nodes.map(() => [] as number[]);
+          gg.edges.forEach(e => { fwd[e.u].push(e.v); rev[e.v].push(e.u); });
+          const order: number[] = []; const seen1 = new Uint8Array(n2);
+          const dfs1 = (u: number) => { seen1[u] = 1; for (const v of fwd[u]) if (!seen1[v]) dfs1(v); order.push(u); };
+          for (let u = 0; u < n2; u++) if (!seen1[u]) dfs1(u);
+          const compRef = new Int32Array(n2).fill(-1); let cRef = 0;
+          const dfs2 = (u: number, c: number) => { compRef[u] = c; for (const v of rev[u]) if (compRef[v] === -1) dfs2(v, c); };
+          for (const u of order.slice().reverse()) if (compRef[u] === -1) dfs2(u, cRef++);
+          // Extract Tarjan's components from the recorded variables.
+          const members = new Map<number, number>();
+          for (const f of frames) for (const k of Object.keys(f.variables)) {
+            if (/^C\d+$/.test(k)) for (const m of f.variables[k] as number[]) members.set(m, Number(k.slice(1)));
+          }
+          expect(members.size).toBe(n2);
+          for (const e of gg.edges) {
+            expect(members.get(e.u) !== undefined).toBe(true);
+            expect((members.get(e.u) === members.get(e.v))).toBe(compRef[e.u] === compRef[e.v]);
+          }
+        }
+        if (algo.id === 'edmonds-karp') {
+          // Reference max-flow (BFS augmenting on a capacity matrix).
+          const n2 = gg.nodes.length;
+          const cap = Array.from({ length: n2 }, () => new Array<number>(n2).fill(0));
+          for (const e of gg.edges) cap[e.u][e.v] += e.w;
+          let flowRef = 0;
+          for (;;) {
+            const prev = new Array<number>(n2).fill(-1); prev[0] = 0;
+            const q = [0];
+            while (q.length) { const u = q.shift()!; for (let v = 0; v < n2; v++) if (prev[v] === -1 && cap[u][v] > 0) { prev[v] = u; q.push(v); } }
+            if (prev[n2 - 1] === -1) break;
+            let b = Infinity;
+            for (let v = n2 - 1; v !== 0; v = prev[v]) b = Math.min(b, cap[prev[v]][v]);
+            for (let v = n2 - 1; v !== 0; v = prev[v]) { cap[prev[v]][v] -= b; cap[v][prev[v]] += b; }
+            flowRef += b;
+          }
+          expect(Number(last.variables['max flow'])).toBe(flowRef);
+        }
         if (algo.id === 'dijkstra') {
           const dist = new Array(12).fill(Infinity); dist[0] = 0;
           for (let k = 0; k < 12; k++) for (const e of g.edges) { dist[e.v] = Math.min(dist[e.v], dist[e.u] + e.w); dist[e.u] = Math.min(dist[e.u], dist[e.v] + e.w); }
@@ -194,4 +242,253 @@ test.describe('graphs', () => {
       expect(weights.prim).toBe(weights.kruskal);
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+import { STRING_LIST, buildStringFrames } from '../src/algorithms/strings';
+import { HASH_LIST, buildHashFrames } from '../src/algorithms/hashing';
+import { GEOMETRY_LIST, generatePoints, buildGeoFrames, GPT, cross as geoCross, dist as geoDist } from '../src/algorithms/geometry';
+import type { GeoPoint } from '../src/algorithms/geometry';
+import { BACKTRACKING, buildBoardFrames as buildBT } from '../src/algorithms/backtracking';
+import { NUMBERS } from '../src/algorithms/numbers';
+
+test.describe('strings', () => {
+  const cases: [string, string][] = [
+    ['ABABDABACDABABCABABCABAB', 'ABABC'],
+    ['AAAAAAAA', 'AAA'],
+    ['ABCABCABC', 'XYZ'],
+    ['MISSISSIPPI', 'ISSI'],
+  ];
+  for (const algo of STRING_LIST) {
+    test(`${algo.id} finds every occurrence`, () => {
+      for (const [text, pattern] of cases) {
+        const parsed = parseInputs(algo.inputs, { text, pattern });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) continue;
+        const setup = algo.setup(parsed.data);
+        expect('error' in setup).toBe(false);
+        if ('error' in setup) continue;
+        const frames = buildStringFrames(algo, setup);
+        linesInRange(algo, frames);
+        const reference: number[] = [];
+        for (let i = 0; i + pattern.length <= text.length; i++) if (text.startsWith(pattern, i)) reference.push(i);
+        const got = frames[frames.length - 1].found.slice().sort((a, b) => a - b);
+        const expected = algo.id === 'z-algorithm' ? reference.map(i => i + pattern.length + 1) : reference;
+        expect(got, `${algo.id} on "${text}"/"${pattern}"`).toEqual(expected.sort((a, b) => a - b));
+      }
+    });
+  }
+});
+
+test.describe('hashing', () => {
+  for (const algo of HASH_LIST) {
+    test(`${algo.id} stores every key exactly once and searches correctly`, () => {
+      const parsed = parseInputs(algo.inputs, defaultInputs(algo.inputs));
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+      const setup = algo.setup(parsed.data);
+      expect('error' in setup).toBe(false);
+      if ('error' in setup) return;
+      const frames = buildHashFrames(algo, setup);
+      linesInRange(algo, frames);
+      const last = frames[frames.length - 1];
+      const stored = last.slots.flat().sort((a, b) => a - b);
+      expect(stored).toEqual([18, 22, 31, 32, 41, 44, 59, 73]);
+      if (algo.id !== 'chaining') for (const slot of last.slots) expect(slot.length).toBeLessThanOrEqual(1);
+      const results = new Map<number, boolean>();
+      for (const f of frames) {
+        const k = f.variables.searching ?? f.variables.key;
+        if (typeof f.variables.found === 'boolean' && typeof k === 'number') results.set(k, f.variables.found);
+      }
+      expect(results.get(44)).toBe(true);
+      expect(results.get(32)).toBe(true);
+      expect(results.get(99)).toBe(false);
+    });
+  }
+});
+
+test.describe('geometry', () => {
+  const hullReference = (pts: GeoPoint[]): Set<number> => {
+    const s = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+    const half = (list: GeoPoint[]) => {
+      const out: GeoPoint[] = [];
+      for (const p of list) {
+        while (out.length >= 2 && geoCross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
+        out.push(p);
+      }
+      return out;
+    };
+    const lower = half(s), upper = half(s.slice().reverse());
+    return new Set([...lower.slice(0, -1), ...upper.slice(0, -1)].map(p => p.id));
+  };
+  for (const seed of [1, 2, 3]) {
+    test(`seed ${seed}: hulls agree with reference, closest pair with brute force`, () => {
+      const pts = generatePoints(16, seed);
+      const ref = hullReference(pts);
+      for (const algo of GEOMETRY_LIST) {
+        const frames = buildGeoFrames(algo, pts);
+        linesInRange(algo, frames);
+        const last = frames[frames.length - 1];
+        if (algo.id === 'graham' || algo.id === 'jarvis') {
+          const hull = new Set<number>();
+          last.pointStates.forEach((s, id) => { if (s === GPT.hull) hull.add(id); });
+          expect([...hull].sort((a, b) => a - b), algo.id).toEqual([...ref].sort((a, b) => a - b));
+        }
+        if (algo.id === 'closest-pair') {
+          let best = Infinity;
+          for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) best = Math.min(best, geoDist(pts[i], pts[j]));
+          expect(Number(last.variables.distance)).toBeCloseTo(best, 9);
+        }
+      }
+    });
+  }
+});
+
+test.describe('board (backtracking, numbers)', () => {
+  test('n-queens solution is valid for several sizes', () => {
+    for (const n of [4, 6, 8]) {
+      const algo = BACKTRACKING['n-queens'];
+      const parsed = parseInputs(algo.inputs, { n: String(n) });
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) continue;
+      const setup = algo.setup(parsed.data);
+      if ('error' in setup) { expect(false).toBe(true); continue; }
+      const frames = buildBT(algo, setup);
+      linesInRange(algo, frames);
+      const last = frames[frames.length - 1];
+      const queens: [number, number][] = [];
+      last.cells.forEach((c, i) => { if (c === '♛') queens.push([Math.floor(i / n), i % n]); });
+      expect(queens.length).toBe(n);
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        const [r1, c1] = queens[i], [r2, c2] = queens[j];
+        expect(r1 !== r2 && c1 !== c2 && Math.abs(r1 - r2) !== Math.abs(c1 - c2), `n=${n}`).toBe(true);
+      }
+    }
+  });
+  test('sudoku default puzzle is solved and respects the givens', () => {
+    const algo = BACKTRACKING['sudoku'];
+    const parsed = parseInputs(algo.inputs, defaultInputs(algo.inputs));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const setup = algo.setup(parsed.data);
+    if ('error' in setup) { expect(false).toBe(true); return; }
+    const frames = buildBT(algo, setup);
+    const last = frames[frames.length - 1];
+    expect(last.variables.solved).toBe(true);
+    const grid = last.cells.map(Number);
+    const givens = defaultInputs(algo.inputs).puzzle;
+    for (let i = 0; i < 81; i++) if (givens[i] !== '.') expect(grid[i]).toBe(Number(givens[i]));
+    const seen = (vals: number[]) => new Set(vals).size === 9 && vals.every(v => v >= 1 && v <= 9);
+    for (let r = 0; r < 9; r++) expect(seen(grid.slice(r * 9, r * 9 + 9))).toBe(true);
+    for (let c = 0; c < 9; c++) expect(seen(Array.from({ length: 9 }, (_, r) => grid[r * 9 + c]))).toBe(true);
+    expect(frames.length).toBeLessThan(60000);
+  });
+  test('sieve marks exactly the primes', () => {
+    const algo = NUMBERS['sieve'];
+    const parsed = parseInputs(algo.inputs, { n: '120' });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const setup = algo.setup(parsed.data);
+    if ('error' in setup) { expect(false).toBe(true); return; }
+    const frames = buildBT(algo, setup);
+    linesInRange(algo, frames);
+    const last = frames[frames.length - 1];
+    const isPrime = (v: number) => { if (v < 2) return false; for (let d = 2; d * d <= v; d++) if (v % d === 0) return false; return true; };
+    for (let v = 1; v <= 120; v++) {
+      const placed = last.states[v - 1] === 2; // BOARD_STATE.placed
+      expect(placed, `value ${v}`).toBe(isPrime(v));
+    }
+  });
+});
+
+test.describe('new sorting, pathfinding, tree and graph entries', () => {
+  test('bidirectional dijkstra matches dijkstra cost on weighted terrain', () => {
+    for (const seed of [1, 2, 3]) {
+      const t = { rows: 21, cols: 41, cells: new Uint8Array(21 * 41) };
+      t.cells = MAZES[1].generate(t, mulberry32(seed)); // random weights maze
+      const empties: number[] = []; t.cells.forEach((c, i) => { if (c !== CELL.wall) empties.push(i); });
+      const s = empties[0], g = empties[empties.length - 1];
+      for (const diagonal of [false, true]) {
+        const dij = buildPathFrames(PATHFINDING_LIST.find(a => a.id === 'dijkstra')!, t, s, g, { diagonal });
+        const bi = buildPathFrames(PATHFINDING_LIST.find(a => a.id === 'bidir-dijkstra')!, t, s, g, { diagonal });
+        const a = dij[dij.length - 1], b = bi[bi.length - 1];
+        expect(b.pathLength > 0).toBe(a.pathLength > 0);
+        if (a.pathLength > 0) expect(b.pathCost).toBeCloseTo(a.pathCost, 6);
+      }
+    }
+  });
+  test('theta* path is never longer than the 8-connected optimum', () => {
+    for (const seed of [1, 2]) {
+      const t = { rows: 21, cols: 41, cells: new Uint8Array(21 * 41) };
+      t.cells = MAZES[0].generate(t, mulberry32(seed));
+      const empties: number[] = []; t.cells.forEach((c, i) => { if (c !== CELL.wall) empties.push(i); });
+      const s = empties[0], g = empties[empties.length - 1];
+      const tu = { ...t, cells: Uint8Array.from(t.cells, c => (c === CELL.weight ? CELL.empty : c)) };
+      const dij = buildPathFrames(PATHFINDING_LIST.find(a => a.id === 'dijkstra')!, tu, s, g, { diagonal: true });
+      const th = buildPathFrames(PATHFINDING_LIST.find(a => a.id === 'theta')!, tu, s, g, { diagonal: true });
+      const a = dij[dij.length - 1], b = th[th.length - 1];
+      expect(b.pathLength > 0).toBe(a.pathLength > 0);
+      if (a.pathLength > 0) {
+        expect(b.pathCost).toBeLessThanOrEqual(a.pathCost + 1e-9);
+        const dr = Math.abs(Math.floor(s / 41) - Math.floor(g / 41)), dc = Math.abs((s % 41) - (g % 41));
+        expect(b.pathCost).toBeGreaterThanOrEqual(Math.hypot(dr, dc) - 1e-9);
+      }
+    }
+  });
+  test('directed graphs contain negative edges but no negative cycle', () => {
+    let negatives = 0;
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const g = generateGraph(12, 0.5, seed, 'directed');
+      negatives += g.edges.filter(e => e.w < 0).length;
+    }
+    expect(negatives).toBeGreaterThan(0);
+  });
+  test('segment tree, trie and huffman invariants', () => {
+    {
+      const algo = TREE_LIST.find(a => a.id === 'segment-tree')!;
+      const parsed = parseInputs(algo.inputs, defaultInputs(algo.inputs));
+      if (!parsed.ok) throw new Error(parsed.error);
+      const r = algo.setup(parsed.data);
+      if ('error' in r) throw new Error(r.error);
+      const frames = buildTreeFrames(algo, r);
+      const last = frames[frames.length - 1];
+      expect(last.variables['query sum']).toBe(6 + 3 + 2 + 7);
+      expect(last.variables['root sum']).toBe(5 + 8 + 6 + 9 + 2 + 7 + 4 + 6);
+    }
+    {
+      const algo = TREE_LIST.find(a => a.id === 'trie')!;
+      const parsed = parseInputs(algo.inputs, defaultInputs(algo.inputs));
+      if (!parsed.ok) throw new Error(parsed.error);
+      const r = algo.setup(parsed.data);
+      if ('error' in r) throw new Error(r.error);
+      const frames = buildTreeFrames(algo, r);
+      const results = new Map<string, boolean>();
+      for (const f of frames) if (typeof f.variables.found === 'boolean') results.set(String(f.variables.searching), f.variables.found);
+      expect(results.get('trie')).toBe(true);
+      expect(results.get('tram')).toBe(false);
+      expect(results.get('tea')).toBe(true);
+    }
+    {
+      const algo = TREE_LIST.find(a => a.id === 'huffman')!;
+      const parsed = parseInputs(algo.inputs, defaultInputs(algo.inputs));
+      if (!parsed.ok) throw new Error(parsed.error);
+      const r = algo.setup(parsed.data);
+      if ('error' in r) throw new Error(r.error);
+      const frames = buildTreeFrames(algo, r);
+      const last = frames[frames.length - 1];
+      // Reference optimal cost by greedy merge of the same frequencies.
+      const text = defaultInputs(algo.inputs).text;
+      const freq = new Map<string, number>();
+      for (const ch of text) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+      const heap = [...freq.values()].sort((a, b) => a - b);
+      let cost = 0;
+      while (heap.length > 1) {
+        const x = heap.shift()!, y = heap.shift()!;
+        cost += x + y;
+        heap.push(x + y);
+        heap.sort((a, b) => a - b);
+      }
+      expect(last.variables['huffman bits']).toBe(cost);
+    }
+  });
 });

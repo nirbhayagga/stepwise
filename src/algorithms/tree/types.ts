@@ -14,6 +14,12 @@ export interface TreeNode {
   height?: number;
   /** Red-black only. */
   color?: 'red' | 'black';
+  /** N-ary children (tries); when set, left/right are ignored by the canvas. */
+  children?: TreeNode[];
+  /** Text drawn inside the node instead of `key` (e.g. a trie character). */
+  text?: string;
+  /** Small caption under the node (range, frequency, code, …). */
+  label?: string;
   /** Internal use by algorithms that need upward links; stripped from snapshots. */
   parent?: TreeNode | null;
 }
@@ -21,6 +27,8 @@ export interface TreeNode {
 export interface TreeAction extends BaseAction {
   /** Snapshot (deep copy) of the tree after this step. */
   root: TreeNode | null;
+  /** Several roots side by side (Huffman construction, segment-tree build). */
+  forest?: TreeNode[];
   /** Sequence produced so far (traversals, extractions). */
   output?: number[];
 }
@@ -36,6 +44,7 @@ export interface TreeAlgorithm extends AlgorithmMeta {
 
 export interface TreeFrame extends BaseFrame {
   root: TreeNode | null;
+  forest: TreeNode[] | null;
   output: number[];
 }
 
@@ -49,7 +58,12 @@ export function snapshot(node: TreeNode | null): TreeNode | null {
   if (!node) return null;
   const { parent: _p, ...rest } = node;
   void _p;
-  return { ...rest, left: snapshot(node.left), right: snapshot(node.right) };
+  return {
+    ...rest,
+    left: snapshot(node.left),
+    right: snapshot(node.right),
+    ...(node.children ? { children: node.children.map(c => snapshot(c)!) } : {}),
+  };
 }
 
 export function clearStates(node: TreeNode | null): void {
@@ -57,16 +71,17 @@ export function clearStates(node: TreeNode | null): void {
   node.state = 'default';
   clearStates(node.left);
   clearStates(node.right);
+  node.children?.forEach(c => clearStates(c));
 }
 
 export function buildTreeFrames(meta: TreeAlgorithm, run: TreeRun): TreeFrame[] {
-  const frames: TreeFrame[] = [{ root: null, output: [], variables: {}, line: 0 }];
+  const frames: TreeFrame[] = [{ root: null, forest: null, output: [], variables: {}, line: 0 }];
   let line = 0;
   let output: number[] = [];
   for (const action of run.run()) {
     if (action.line !== undefined) { checkLine(meta, action.line); line = action.line; }
     if (action.output) output = action.output.slice();
-    frames.push({ root: action.root, output, variables: action.variables ?? {}, line });
+    frames.push({ root: action.root, forest: action.forest ?? null, output, variables: action.variables ?? {}, line });
   }
   return frames;
 }

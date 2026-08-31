@@ -17,12 +17,14 @@ export interface GraphAction extends BaseAction {
   edges?: [id: number, state: number][];
   /** Text drawn under a node (distance, key, component …). */
   labels?: Record<number, string>;
+  /** Text drawn on an edge instead of its weight (e.g. flow "f/c"). */
+  edgeLabels?: Record<number, string>;
   output?: number[];
 }
 
 export interface GraphAlgorithm extends AlgorithmMeta {
   /** Graph family the algorithm needs; the view regenerates accordingly. */
-  kind: 'undirected' | 'dag';
+  kind: 'undirected' | 'dag' | 'directed';
   weighted: boolean;
   usesSource: boolean;
   run(g: Graph, source: number): Generator<GraphAction, void, unknown>;
@@ -32,6 +34,7 @@ export interface GraphFrame extends BaseFrame {
   nodeStates: Uint8Array;
   edgeStates: Uint8Array;
   labels: string[];
+  edgeLabels: string[];
   output: number[];
 }
 
@@ -51,11 +54,13 @@ export function buildGraphFrames(meta: GraphAlgorithm, g: Graph, source: number)
   const nodeStates = new Uint8Array(g.nodes.length);
   const edgeStates = new Uint8Array(g.edges.length);
   const labels = new Array<string>(g.nodes.length).fill('');
+  const edgeLabels = new Array<string>(g.edges.length).fill('');
   let output: number[] = [];
   let line = 0;
   const frames: GraphFrame[] = [];
   const push = (variables: Record<string, unknown>) => frames.push({
-    nodeStates: Uint8Array.from(nodeStates), edgeStates: Uint8Array.from(edgeStates), labels: labels.slice(), output, variables, line,
+    nodeStates: Uint8Array.from(nodeStates), edgeStates: Uint8Array.from(edgeStates),
+    labels: labels.slice(), edgeLabels: edgeLabels.slice(), output, variables, line,
   });
   push({});
   for (const a of meta.run(g, source)) {
@@ -63,6 +68,7 @@ export function buildGraphFrames(meta: GraphAlgorithm, g: Graph, source: number)
     if (a.nodes) for (const [id, s] of a.nodes) nodeStates[id] = s;
     if (a.edges) for (const [id, s] of a.edges) edgeStates[id] = s;
     if (a.labels) for (const k in a.labels) labels[Number(k)] = a.labels[k];
+    if (a.edgeLabels) for (const k in a.edgeLabels) edgeLabels[Number(k)] = a.edgeLabels[k];
     if (a.output) output = a.output.slice();
     push(a.variables ?? {});
   }

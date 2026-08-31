@@ -13,6 +13,7 @@ export function useTree() {
 
   const meta = computed(() => TREE[algorithmId.value]);
   const root = computed(() => tl.current.value?.root ?? null);
+  const forest = computed(() => tl.current.value?.forest ?? null);
   const output = computed(() => tl.current.value?.output ?? []);
   const variables = computed(() => tl.current.value?.variables ?? {});
   const activeLine = computed(() => tl.current.value?.line || null);
@@ -36,5 +37,5 @@ export function useTree() {
 
   rebuild();
 
-  return { ...tl, algorithmId, inputs, error, meta, root, output, variables, activeLine, rebuild, setAlgorithm };
+  return { ...tl, algorithmId, inputs, error, meta, root, forest, output, variables, activeLine, rebuild, setAlgorithm };
 }

@@ -10,13 +10,18 @@ Built with Vue 3, TypeScript and Vite. Runs entirely in the browser; no backend.
 
 | Module | Algorithms |
 | --- | --- |
-| **Sorting** | Bubble, Cocktail shaker, Selection, Insertion, Shell, Merge, Quick (Lomuto), Heap, Counting, Radix (LSD) |
+| **Sorting** | Bubble, Cocktail shaker, Selection, Insertion, Shell, Merge, TimSort (Java/JS built-in), Powersort (Python ≥ 3.11 merge policy), Quick (Lomuto), Heap, Counting, Radix (LSD), Bucket, Bogosort |
 | **Sorting · Compare** | Any two sorts on identical input, advanced in lockstep |
-| **Pathfinding** | Dijkstra, A*, Jump Point Search, Greedy best-first, BFS, Bidirectional BFS, DFS — 4- or 8-connected grid, walls and weighted cells, five maze generators (recursive backtracker, randomised Prim, randomised Kruskal, recursive division, random walls/weights) |
+| **Pathfinding** | Dijkstra, Bidirectional Dijkstra, A*, Theta* (any-angle), Jump Point Search, Greedy best-first, BFS, Bidirectional BFS, DFS — 4- or 8-connected grid, walls and weighted cells, five maze generators (recursive backtracker, randomised Prim, randomised Kruskal, recursive division, random walls/weights) |
 | **Pathfinding · Compare** | Two searches on the same terrain, side by side |
-| **Dynamic programming** | 0/1 Knapsack, LCS, Edit distance, Coin change, LIS, Matrix-chain multiplication — editable inputs, labelled tables, dependency highlighting |
-| **Binary trees** | BST insertion and deletion, AVL, Red–black, Binary heap (insert / extract-max), In-, pre-, post- and level-order traversals |
-| **Graphs** | BFS, DFS with discovery/finish times, Dijkstra, Prim, Kruskal (union–find), Kahn's topological sort on generated planar-looking graphs |
+| **Dynamic programming** | 0/1 Knapsack, LCS, Edit distance, Coin change, LIS, Matrix-chain multiplication, Floyd–Warshall — editable inputs, labelled tables, dependency highlighting |
+| **Binary trees** | BST insertion and deletion, AVL, Red–black, Binary heap (insert / extract-max), Segment tree, Trie, Huffman coding, In-, pre-, post- and level-order traversals |
+| **Graphs** | BFS, DFS with discovery/finish times, Dijkstra, Bellman–Ford (negative edges), Prim, Kruskal (union–find), Kahn's topological sort, Tarjan SCC, Edmonds–Karp max-flow on generated planar-looking graphs |
+| **Strings** | Knuth–Morris–Pratt, Boyer–Moore–Horspool, Rabin–Karp, Z-algorithm with sliding pattern row and auxiliary tables |
+| **Hash tables** | Separate chaining, linear/quadratic probing, double hashing — collisions, load factor and rehashing |
+| **Geometry** | Graham scan, gift wrapping, closest pair (divide & conquer) |
+| **Backtracking** | N-Queens and a Sudoku solver with constraint-conflict pruning |
+| **Number theory** | Sieve of Eratosthenes |
 | **Sandbox** | Write your own algorithm in JavaScript against a small drawing API; runs in a Web Worker so it can be stopped at any time |
 
 Each algorithm page shows its time/space complexity and properties (stable, in-place, optimal, …), the pseudocode with the active line highlighted, the variables at the current step, a legend, and step counters (comparisons, swaps, writes, nodes visited, path cost, …). Wall-clock time is deliberately not reported: it would measure the recorder, not the algorithm.

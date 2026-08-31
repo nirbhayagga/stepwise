@@ -14,7 +14,7 @@ function cross(a: GraphNode, b: GraphNode, c: GraphNode, d: GraphNode): boolean 
  * proportional to Euclidean length so shortest paths look right.
  * `kind === 'dag'` orients every edge left → right, which is trivially acyclic.
  */
-export function generateGraph(n: number, density: number, seed: number, kind: 'undirected' | 'dag'): Graph {
+export function generateGraph(n: number, density: number, seed: number, kind: 'undirected' | 'dag' | 'directed'): Graph {
   const rnd = mulberry32(seed);
   const nodes: GraphNode[] = [];
   const minDist = Math.max(0.09, 0.42 / Math.sqrt(n));
@@ -24,7 +24,7 @@ export function generateGraph(n: number, density: number, seed: number, kind: 'u
     const p = { id: nodes.length, x: 0.06 + rnd() * 0.88, y: 0.1 + rnd() * 0.8 };
     if (nodes.every(q => Math.hypot(p.x - q.x, (p.y - q.y) * 0.6) >= minDist)) nodes.push(p);
   }
-  if (kind === 'dag') {
+  if (kind !== 'undirected') {
     nodes.sort((a, b) => a.x - b.x);
     nodes.forEach((p, i) => { p.id = i; });
   }
@@ -54,5 +54,15 @@ export function generateGraph(n: number, density: number, seed: number, kind: 'u
     if (has.has(`${i}-${j}`) || d > 0.42 || crossesExisting(i, j)) continue;
     addEdge(i, j, d);
   }
-  return { nodes, edges, directed: kind === 'dag' };
+  if (kind === 'directed') {
+    // Random orientation, then shift weights by node potentials. Any cycle's
+    // total weight is unchanged by the shift, so no negative cycle can appear,
+    // but individual edges may go negative.
+    const phi = nodes.map(() => Math.floor(rnd() * 13));
+    for (const e of edges) {
+      if (rnd() < 0.5) [e.u, e.v] = [e.v, e.u];
+      e.w = e.w + phi[e.u] - phi[e.v];
+    }
+  }
+  return { nodes, edges, directed: kind !== 'undirected' };
 }

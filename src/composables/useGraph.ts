@@ -19,6 +19,7 @@ export function useGraph() {
   const nodeStates = computed(() => tl.current.value?.nodeStates ?? EMPTY_U8);
   const edgeStates = computed(() => tl.current.value?.edgeStates ?? EMPTY_U8);
   const labels = computed(() => tl.current.value?.labels ?? []);
+  const edgeLabels = computed(() => tl.current.value?.edgeLabels ?? []);
   const output = computed(() => tl.current.value?.output ?? []);
   const variables = computed(() => tl.current.value?.variables ?? {});
   const activeLine = computed(() => tl.current.value?.line || null);
@@ -49,7 +50,7 @@ export function useGraph() {
 
   return {
     ...tl, algorithmId, nodeCount, density, seed, source, graph, meta,
-    nodeStates, edgeStates, labels, output, variables, activeLine,
+    nodeStates, edgeStates, labels, edgeLabels, output, variables, activeLine,
     regenerate, setAlgorithm, setSource,
   };
 }

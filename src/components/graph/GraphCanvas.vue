@@ -7,6 +7,7 @@ const props = defineProps<{
   nodeStates: Uint8Array;
   edgeStates: Uint8Array;
   labels: string[];
+  edgeLabels?: string[];
   source: number;
   showSource: boolean;
   weighted: boolean;
@@ -27,8 +28,9 @@ const edges = computed(() => props.graph.edges.map(e => {
   // Shorten so arrowheads stop at the circle edge.
   const ux = (x2 - x1) / len, uy = (y2 - y1) / len;
   const trim = R + (props.graph.directed ? 6 : 0);
+  const lbl = props.edgeLabels?.[e.id] || (props.weighted ? String(e.w) : '');
   return {
-    id: e.id, w: e.w,
+    id: e.id, lbl, half: Math.max(11, lbl.length * 3.5 + 5),
     x1: x1 + ux * R, y1: y1 + uy * R, x2: x2 - ux * trim, y2: y2 - uy * trim,
     mx: (x1 + x2) / 2, my: (y1 + y2) / 2,
     cls: EDGE_CLASS[props.edgeStates[e.id] ?? 0],
@@ -46,9 +48,9 @@ const edges = computed(() => props.graph.edges.map(e => {
       </defs>
       <g v-for="e in edges" :key="e.id" class="edge" :class="e.cls">
         <line :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" :marker-end="graph.directed ? 'url(#arrow)' : undefined" />
-        <g v-if="weighted" :transform="`translate(${e.mx}, ${e.my})`">
-          <rect x="-11" y="-8" width="22" height="16" rx="2" class="wbg" />
-          <text dominant-baseline="central" text-anchor="middle" class="w">{{ e.w }}</text>
+        <g v-if="e.lbl" :transform="`translate(${e.mx}, ${e.my})`">
+          <rect :x="-e.half" y="-8" :width="2 * e.half" height="16" rx="2" class="wbg" />
+          <text dominant-baseline="central" text-anchor="middle" class="w">{{ e.lbl }}</text>
         </g>
       </g>
       <g

@@ -12,7 +12,7 @@ import StateLegend from '../components/common/StateLegend.vue';
 import GraphCanvas from '../components/graph/GraphCanvas.vue';
 
 const {
-  algorithmId, nodeCount, density, source, graph, meta, nodeStates, edgeStates, labels, output, variables, activeLine,
+  algorithmId, nodeCount, density, source, graph, meta, nodeStates, edgeStates, labels, edgeLabels, output, variables, activeLine,
   index, frameCount, isPlaying, speed,
   play, pause, toggle, step, stepBack, reset, seek, regenerate, setAlgorithm, setSource,
 } = useGraph();
@@ -62,7 +62,7 @@ const legend = [
 
     <div class="workspace">
       <div class="workspace-main">
-        <GraphCanvas :graph="graph" :node-states="nodeStates" :edge-states="edgeStates" :labels="labels" :source="source" :show-source="meta.usesSource" :weighted="meta.weighted" @select="setSource" />
+        <GraphCanvas :graph="graph" :node-states="nodeStates" :edge-states="edgeStates" :labels="labels" :edge-labels="edgeLabels" :source="source" :show-source="meta.usesSource" :weighted="meta.weighted" @select="setSource" />
         <div v-if="output.length" class="panel output mono">
           <span class="eyebrow">Order</span>
           <span v-for="(k, i) in output" :key="i" class="tok">{{ k }}</span>

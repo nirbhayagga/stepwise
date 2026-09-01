@@ -70,7 +70,7 @@ const layout = computed(() => {
 
 <template>
   <div class="panel canvas">
-    <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="xMidYMin meet">
+    <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Tree diagram">
       <line v-for="l in layout.links" :key="l.id" :x1="l.x1" :y1="l.y1" :x2="l.x2" :y2="l.y2" class="link" />
       <g v-for="n in layout.nodes" :key="n.id" :class="['node', n.state, n.color]" :transform="`translate(${n.x}, ${n.y})`">
         <circle :r="R" />

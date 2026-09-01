@@ -8,7 +8,7 @@ const cls = (s?: number) => CLASS[s ?? HASH_STATE.default];
 
 <template>
   <div class="panel wrap">
-    <div class="table mono">
+    <div class="table mono" role="img" aria-label="Hash table slots">
       <div v-for="(slot, i) in slots" :key="i" class="col">
         <div class="idx">{{ i }}</div>
         <div class="slot" :class="[cls(states[i]), { empty: slot.length === 0 }]">

@@ -5,7 +5,7 @@ const CLASS = ['empty', 'fixed', 'placed', 'trying', 'conflict', 'removed'];
 
 <template>
   <div class="panel wrap">
-    <div class="board mono" :style="{ gridTemplateColumns: `repeat(${cols}, 1fr)` }">
+    <div class="board mono" role="img" aria-label="Puzzle board" :style="{ gridTemplateColumns: `repeat(${cols}, 1fr)` }">
       <div
         v-for="(text, i) in cells"
         :key="i"

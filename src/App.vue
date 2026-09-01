@@ -27,6 +27,12 @@ const groups = computed(() => {
         </router-link>
       </div>
       <div class="sidebar-footer">
+        <div class="links">
+          <a href="https://github.com/nirbhayagga/stepwise" rel="noopener">GitHub</a>
+          <a href="https://github.com/nirbhayagga/stepwise/blob/main/LICENSE" rel="noopener">MIT</a>
+          <a href="https://nirbhay.dev" rel="noopener">nirbhay.dev</a>
+        </div>
+        <div class="hint">No tracking · no cookies</div>
         <div class="hint"><span class="kbd">Space</span> play / pause</div>
         <div class="hint"><span class="kbd">←</span> <span class="kbd">→</span> step</div>
         <div class="hint"><span class="kbd">Home</span> <span class="kbd">End</span> jump</div>
@@ -65,6 +71,7 @@ const groups = computed(() => {
 .nav-link:hover { color: var(--text); background: var(--surface-2); }
 .nav-link.router-link-active { color: var(--accent-strong); background: var(--accent-bg); }
 .sidebar-footer { margin-top: auto; padding: 14px 18px 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.links { display: flex; gap: 12px; font-size: 12px; padding-bottom: 2px; }
 .hint { font-size: 11.5px; color: var(--text-faint); display: flex; gap: 6px; align-items: center; }
 .content { flex: 1; padding: 20px 24px; overflow-y: auto; min-width: 0; -webkit-overflow-scrolling: touch; }
 

@@ -8,7 +8,7 @@ const CLASS = ['', 'active', 'hull', 'rejected', 'best', 'strip'];
 
 <template>
   <div class="panel canvas">
-    <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="xMidYMid meet">
+    <svg :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Diagram of points, hull edges and distances">
       <line
         v-for="(s, i) in segments" :key="i"
         :x1="s.x1 * W" :y1="s.y1 * H" :x2="s.x2 * W" :y2="s.y2 * H"

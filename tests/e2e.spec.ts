@@ -101,6 +101,19 @@ test('playback never scrolls the page (regression: pseudocode auto-scroll)', asy
   expect(await content.evaluate(el => el.scrollTop)).toBe(before);
 });
 
+test('titles follow the module and unknown routes get a 404 view', async ({ page }) => {
+  await page.goto('/#/sort');
+  await expect(page).toHaveTitle('Sorting · Stepwise');
+  await page.goto('/#/graph');
+  await expect(page).toHaveTitle('Graphs · Stepwise');
+  await page.goto('/#/does-not-exist');
+  await expect(page.locator('h1')).toContainText('Page not found');
+  await expect(page).toHaveTitle('Not found · Stepwise');
+  await page.getByRole('link', { name: 'Back to the visualizer' }).click();
+  await expect(page).toHaveTitle('Sorting · Stepwise');
+  await expect(page.locator('.bar').first()).toBeVisible();
+});
+
 test('new modules produce results at the end of their timelines', async ({ page }) => {
   // Hash navigation swaps lazily-loaded views in place, so wait for each
   // view's canvas before using keyboard shortcuts.

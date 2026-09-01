@@ -8,7 +8,7 @@ const cls = (s: number | undefined) => CLASS[s ?? DP_STATE.empty];
 
 <template>
   <div class="panel board">
-    <table class="mono">
+    <table class="mono" aria-label="Dynamic programming table">
       <thead>
         <tr>
           <th class="corner"></th>

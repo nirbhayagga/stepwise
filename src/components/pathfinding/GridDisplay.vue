@@ -74,6 +74,8 @@ const onUp = (e: PointerEvent) => {
   <div
     ref="grid"
     class="panel grid"
+    role="img"
+    aria-label="Pathfinding grid with walls, weights and search states"
     :class="{ interactive }"
     :style="{ gridTemplateColumns: `repeat(${cols}, 1fr)` }"
     @pointerdown="onDown"

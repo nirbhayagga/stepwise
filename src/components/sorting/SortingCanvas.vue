@@ -16,7 +16,7 @@ const bars = computed(() =>
 </script>
 
 <template>
-  <div class="panel canvas" :style="{ height: `min(${height ?? 420}px, 55vh)` }">
+  <div class="panel canvas" role="img" aria-label="Bar chart of the array being sorted" :style="{ height: `min(${height ?? 420}px, 55vh)` }">
     <div v-for="b in bars" :key="b.i" class="bar" :class="b.cls" :style="{ height: b.h + '%' }"></div>
   </div>
 </template>

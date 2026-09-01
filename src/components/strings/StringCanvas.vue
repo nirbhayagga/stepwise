@@ -20,7 +20,7 @@ const patternCells = computed(() => props.pattern.split('').map((ch, i) => ({ ch
 
 <template>
   <div class="panel wrap">
-    <div class="scroller mono">
+    <div class="scroller mono" role="img" aria-label="Text, pattern alignment and auxiliary table">
       <div class="row ruler">
         <span v-for="(_, i) in textCells" :key="i" class="cell idx">{{ i % 5 === 0 ? i : '' }}</span>
       </div>

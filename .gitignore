@@ -25,3 +25,6 @@ blob-report/
 
 # Wrangler local state
 .wrangler/
+
+# Conversation exports and other loose text notes at the repo root
+/*.txt

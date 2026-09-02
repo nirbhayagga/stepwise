@@ -5,7 +5,7 @@ import { checkLine } from './types';
  * Generic cell-board timeline (N-Queens, Sudoku, the sieve, …): persistent
  * text + state per cell, plus transient per-frame flashes.
  */
-export const BOARD_STATE = { empty: 0, fixed: 1, placed: 2, trying: 3, conflict: 4, removed: 5 } as const;
+export const BOARD_STATE = { empty: 0, fixed: 1, placed: 2, trying: 3, conflict: 4, removed: 5, note: 6 } as const;
 
 export interface BoardAction extends BaseAction {
   /** Persistent writes: cell text + state. `null` text clears the cell. */

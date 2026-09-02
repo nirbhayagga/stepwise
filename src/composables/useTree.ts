@@ -3,15 +3,16 @@ import { useTimeline } from '../engine/useTimeline';
 import { defaultInputs, parseInputs } from '../engine/types';
 import type { InputValues } from '../engine/types';
 import { TREE, DEFAULT_TREE, buildTreeFrames } from '../algorithms/tree';
-import type { TreeFrame } from '../algorithms/tree';
+import type { TreeAlgorithm, TreeFrame } from '../algorithms/tree';
+import type { Registry } from '../engine/types';
 
-export function useTree() {
-  const tl = useTimeline<TreeFrame>(450);
-  const algorithmId = ref(DEFAULT_TREE);
-  const inputs = ref<InputValues>(defaultInputs(TREE[DEFAULT_TREE].inputs));
+export function useTree(registry: Registry<TreeAlgorithm> = TREE, defaultId: string = DEFAULT_TREE, baseDelay = 450) {
+  const tl = useTimeline<TreeFrame>(baseDelay);
+  const algorithmId = ref(defaultId);
+  const inputs = ref<InputValues>(defaultInputs(registry[defaultId].inputs));
   const error = ref<string | null>(null);
 
-  const meta = computed(() => TREE[algorithmId.value]);
+  const meta = computed(() => registry[algorithmId.value]);
   const root = computed(() => tl.current.value?.root ?? null);
   const forest = computed(() => tl.current.value?.forest ?? null);
   const output = computed(() => tl.current.value?.output ?? []);
@@ -28,10 +29,10 @@ export function useTree() {
   };
 
   const setAlgorithm = (id: string) => {
-    if (!TREE[id]) return;
+    if (!registry[id]) return;
     const keep = inputs.value.keys;
     algorithmId.value = id;
-    inputs.value = { ...defaultInputs(TREE[id].inputs), ...(keep !== undefined ? { keys: keep } : {}) };
+    inputs.value = { ...defaultInputs(registry[id].inputs), ...(keep !== undefined && registry[id].inputs.some(i => i.key === 'keys') ? { keys: keep } : {}) };
     rebuild();
   };
 

@@ -3,7 +3,7 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 
-const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'numbers', 'sandbox'];
+const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'sandbox'];
 
 /** Fail the test on any uncaught exception or console.error. */
 const watchConsole = (page: Page) => {
@@ -141,12 +141,17 @@ test('new modules produce results at the end of their timelines', async ({ page 
   await page.locator('.cell').first().waitFor();
   await page.keyboard.press('End');
   await expect(page.locator('.cell.placed')).toHaveCount(30); // π(120)
+
+  await page.goto('/#/recursion');
+  await expect(page.locator('h1')).toHaveText('Recursion'); // tree is empty at frame 0
+  await page.keyboard.press('End');
+  await expect(page.locator('.node')).toHaveCount(67); // naive fib(8) call tree
 });
 
 test.describe('mobile viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'numbers', 'sandbox']) {
+  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'sandbox']) {
     test(`/${route} fits the screen width`, async ({ page }) => {
       const errors = watchConsole(page);
       await page.goto(`/#/${route}`);

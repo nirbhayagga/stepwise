@@ -492,3 +492,128 @@ test.describe('new sorting, pathfinding, tree and graph entries', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+import { RECURSION_LIST, RECURSION } from '../src/algorithms/recursion';
+
+const validSudoku = (grid: number[]): boolean => {
+  const ok = (vals: number[]) => new Set(vals).size === 9 && vals.every(v => v >= 1 && v <= 9);
+  for (let r = 0; r < 9; r++) if (!ok(grid.slice(r * 9, r * 9 + 9))) return false;
+  for (let c = 0; c < 9; c++) if (!ok(Array.from({ length: 9 }, (_, r) => grid[r * 9 + c]))) return false;
+  for (let b = 0; b < 9; b++) {
+    const br = Math.floor(b / 3) * 3, bc = (b % 3) * 3;
+    const box: number[] = [];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) box.push(grid[(br + r) * 9 + bc + c]);
+    if (!ok(box)) return false;
+  }
+  return true;
+};
+const runSudoku = (id: string, puzzle?: string) => {
+  const algo = BACKTRACKING[id];
+  const values = puzzle ? { puzzle } : defaultInputs(algo.inputs);
+  const parsed = parseInputs(algo.inputs, values);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const setup = algo.setup(parsed.data);
+  if ('error' in setup) throw new Error(setup.error);
+  const frames = buildBT(algo, setup);
+  linesInRange(algo, frames);
+  return { frames, last: frames[frames.length - 1], givens: (values.puzzle as string) };
+};
+
+test.describe('sudoku: constraint propagation and human techniques', () => {
+  test('cp+mrv solves its easy default with zero guesses', () => {
+    const { last, givens } = runSudoku('sudoku-cp');
+    expect(last.variables.solved).toBe(true);
+    expect(last.variables.guesses).toBe(0);
+    const grid = last.cells.map(Number);
+    expect(validSudoku(grid)).toBe(true);
+    for (let i = 0; i < 81; i++) if (givens[i] !== '.') expect(grid[i]).toBe(Number(givens[i]));
+  });
+  test('cp+mrv solves a hard puzzle by searching, naive and cp agree on the default', () => {
+    const hard = '4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......';
+    const { last } = runSudoku('sudoku-cp', hard);
+    expect(last.variables.solved).toBe(true);
+    expect(Number(last.variables.guesses)).toBeGreaterThan(0);
+    expect(validSudoku(last.cells.map(Number))).toBe(true);
+    const cp = runSudoku('sudoku-cp').last.cells.join('');
+    const naive = runSudoku('sudoku', defaultInputs(BACKTRACKING['sudoku-cp'].inputs).puzzle).last.cells.join('');
+    expect(cp).toBe(naive);
+  });
+  test('human techniques solve the default without guessing and use a pair', () => {
+    const { last, givens } = runSudoku('sudoku-human');
+    expect(last.variables.solved).toBe(true);
+    expect(last.variables.stuck).toBeUndefined();
+    const grid = last.cells.map(Number);
+    expect(validSudoku(grid)).toBe(true);
+    for (let i = 0; i < 81; i++) if (givens[i] !== '0' && givens[i] !== '.') expect(grid[i]).toBe(Number(givens[i]));
+    expect(Number(last.variables['naked pair'])).toBeGreaterThan(0);
+  });
+});
+
+test.describe('recursion', () => {
+  const runRec = (id: string, overrides: Record<string, string> = {}) => {
+    const algo = RECURSION[id];
+    const parsed = parseInputs(algo.inputs, { ...defaultInputs(algo.inputs), ...overrides });
+    if (!parsed.ok) throw new Error(parsed.error);
+    const setup = algo.setup(parsed.data);
+    if ('error' in setup) throw new Error(setup.error);
+    const frames = buildTreeFrames(algo, setup);
+    linesInRange(algo, frames);
+    return frames[frames.length - 1];
+  };
+  const countNodes = (n: import('../src/algorithms/tree').TreeNode | null): number =>
+    n ? 1 + (n.children ?? []).reduce((a, c) => a + countNodes(c), 0) : 0;
+
+  test('naive fib call tree has 2·fib(n+1)−1 nodes and the right value', () => {
+    const last = runRec('fib-naive', { n: '8' });
+    expect(last.variables.result).toBe(21);
+    expect(last.variables['total calls']).toBe(67); // 2·fib(9)−1
+    expect(countNodes(last.root)).toBe(67);
+  });
+  test('memoized fib collapses to linear calls', () => {
+    const last = runRec('fib-memo', { n: '8' });
+    expect(last.variables.result).toBe(21);
+    expect(last.variables['total calls']).toBe(15); // 2n−1
+    expect(last.variables['memo hits']).toBe(6);
+  });
+  test('subsets and permutations hit their counting identities', () => {
+    const s = runRec('subsets');
+    expect(s.variables['subsets found']).toBe(8);
+    expect(new Set((s.variables.all as string).split(' ')).size).toBe(8);
+    const p = runRec('permutations');
+    expect(p.variables['permutations found']).toBe(6);
+  });
+  test('hanoi makes 2ⁿ−1 legal moves', () => {
+    const last = runRec('hanoi', { n: '4' });
+    expect(last.variables['total moves']).toBe(15);
+    const pegs: Record<string, number[]> = { A: [4, 3, 2, 1], B: [], C: [] };
+    for (const mv of (last.variables.sequence as string).split(' ')) {
+      const [from, to] = mv.split('→');
+      const disc = pegs[from].pop()!;
+      const top = pegs[to][pegs[to].length - 1];
+      expect(top === undefined || top > disc, mv).toBe(true);
+      pegs[to].push(disc);
+    }
+    expect(pegs.C).toEqual([4, 3, 2, 1]);
+  });
+  test('ackermann values are right and explosive inputs are refused', () => {
+    expect(runRec('ackermann', { m: '2', n: '2' }).variables.result).toBe(7);
+    expect(runRec('ackermann', { m: '2', n: '3' }).variables.result).toBe(9);
+    const algo = RECURSION['ackermann'];
+    const parsed = parseInputs(algo.inputs, { m: '3', n: '3' });
+    if (!parsed.ok) throw new Error(parsed.error);
+    const setup = algo.setup(parsed.data);
+    expect('error' in setup).toBe(true);
+  });
+  test('every recursion entry runs its defaults with valid lines', () => {
+    for (const algo of RECURSION_LIST) {
+      const parsed = parseInputs(algo.inputs, defaultInputs(algo.inputs));
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) continue;
+      const setup = algo.setup(parsed.data);
+      expect('error' in setup).toBe(false);
+      if ('error' in setup) continue;
+      linesInRange(algo, buildTreeFrames(algo, setup));
+    }
+  });
+});

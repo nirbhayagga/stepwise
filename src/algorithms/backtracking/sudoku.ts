@@ -10,7 +10,7 @@ const MAX_STEPS = 60_000;
 
 export const sudoku: BoardAlgorithm = {
   id: 'sudoku',
-  name: 'Sudoku Solver',
+  name: 'Sudoku · Naive Backtracking',
   summary: 'Fills the first empty cell with the smallest digit that respects row, column and 3×3 box, recursing and unwinding on dead ends — the same pruned depth-first search as N-Queens with three constraints.',
   complexity: { time: { worst: 'O(9^cells)' }, space: 'O(cells)', tags: ['Backtracking', 'Constraint pruning'] },
   inputs: [{ key: 'puzzle', label: 'Puzzle (81 chars, "." = empty)', kind: 'text', default: DEFAULT_PUZZLE, maxLength: 81 }],

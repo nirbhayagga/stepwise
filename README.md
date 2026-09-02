@@ -20,7 +20,8 @@ Built with Vue 3, TypeScript and Vite. Runs entirely in the browser; no backend.
 | **Strings** | Knuth–Morris–Pratt, Boyer–Moore–Horspool, Rabin–Karp, Z-algorithm with sliding pattern row and auxiliary tables |
 | **Hash tables** | Separate chaining, linear/quadratic probing, double hashing — collisions, load factor and rehashing |
 | **Geometry** | Graham scan, gift wrapping, closest pair (divide & conquer) |
-| **Backtracking** | N-Queens and a Sudoku solver with constraint-conflict pruning |
+| **Backtracking** | N-Queens, and Sudoku three ways: naive backtracking, Norvig-style constraint propagation + MRV, and a no-guessing human technique ladder (naked/hidden singles, pairs, triples, pointing pairs, X-Wing) — the engines behind sudoku.nirbhay.dev |
+| **Recursion** | Live call trees: naive vs. memoized Fibonacci, subsets, permutations, Tower of Hanoi, and the Ackermann function |
 | **Number theory** | Sieve of Eratosthenes |
 | **Sandbox** | Write your own algorithm in JavaScript against a small drawing API; runs in a Web Worker so it can be stopped at any time |
 

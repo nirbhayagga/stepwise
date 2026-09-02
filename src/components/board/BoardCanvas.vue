@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineProps<{ rows: number; cols: number; cells: string[]; states: Uint8Array; boxSize?: number }>();
-const CLASS = ['empty', 'fixed', 'placed', 'trying', 'conflict', 'removed'];
+const CLASS = ['empty', 'fixed', 'placed', 'trying', 'conflict', 'removed', 'note'];
 </script>
 
 <template>
@@ -36,4 +36,5 @@ const CLASS = ['empty', 'fixed', 'placed', 'trying', 'conflict', 'removed'];
 .cell.trying { background: var(--s-compare); border-color: var(--s-compare); color: #14120a; }
 .cell.conflict { background: rgba(212, 122, 116, 0.2); border-color: var(--s-write); color: var(--s-write); }
 .cell.removed { background: var(--surface); border-color: var(--border); color: var(--text-faint); }
+.cell.note { color: var(--text-faint); font-size: clamp(8px, 1.6vw, 11px); }
 </style>

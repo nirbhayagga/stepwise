@@ -3,7 +3,7 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 
-const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'sandbox'];
+const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'growth', 'sandbox'];
 
 /** Fail the test on any uncaught exception or console.error. */
 const watchConsole = (page: Page) => {
@@ -151,7 +151,7 @@ test('new modules produce results at the end of their timelines', async ({ page 
 test.describe('mobile viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'sandbox']) {
+  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'growth', 'sandbox']) {
     test(`/${route} fits the screen width`, async ({ page }) => {
       const errors = watchConsole(page);
       await page.goto(`/#/${route}`);
@@ -232,6 +232,35 @@ test('graphs: topological order covers every vertex and source can be changed', 
   await expect(page.locator('.node.source text').first()).toHaveText('3');
   await page.keyboard.press('End');
   expect(await page.locator('.edge.tree').count()).toBe(11);
+});
+
+test('growth analysis: measures, plots and fits sorting algorithms', async ({ page }) => {
+  await page.goto('/#/growth');
+  await expect(page.locator('.chart')).toBeVisible();
+  await expect(page.locator('.fit')).toHaveCount(3); // insertion, merge, quick preselected
+  await expect(page.locator('.fit', { hasText: 'Merge' })).toContainText('n log n');
+
+  // Insertion sort on reversed input must be recognised as quadratic.
+  await page.locator('.toolbar select').selectOption('reversed');
+  await expect(page.locator('.fit', { hasText: 'Insertion' })).toContainText('Θ(n²)');
+
+  // Toggling an algorithm chip adds a series and a table row.
+  await page.locator('.pick', { hasText: 'Heap' }).click();
+  await expect(page.locator('.fit')).toHaveCount(4);
+  await expect(page.locator('.ops-table tbody tr')).toHaveCount(4);
+});
+
+test('PWA: the service worker activates and controls the page', async ({ page }) => {
+  await page.goto('/#/sort');
+  const active = await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    const sw = reg.active!;
+    if (sw.state !== 'activated') await new Promise(res => sw.addEventListener('statechange', res, { once: true }));
+    return sw.state;
+  });
+  expect(active).toBe('activated');
+  const sw = await page.request.get('/sw.js');
+  expect(sw.status()).toBe(200);
 });
 
 test('sandbox: user code runs in the worker and sorts the array', async ({ page }) => {

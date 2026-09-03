@@ -41,7 +41,7 @@ export const mergeSort: SortingAlgorithm = {
   id: 'merge',
   name: 'Merge Sort',
   summary: 'Divides the array in half recursively and merges the sorted halves; guarantees n log n comparisons.',
-  complexity: { time: { best: 'Ω(n log n)', average: 'Θ(n log n)', worst: 'O(n log n)' }, space: 'O(n)', tags: ['Stable', 'Not in-place', 'Divide & conquer'] },
+  complexity: { time: { best: 'Ω(n log n)', average: 'Θ(n log n)', worst: 'O(n log n)' }, space: 'O(n)', recurrence: 'T(n) = 2T(n/2) + Θ(n) ⇒ Θ(n log n) — Master case 2', tags: ['Stable', 'Not in-place', 'Divide & conquer'] },
   pseudocode: [
     'procedure MergeSort(A, lo, hi)',                          // 1
     '  if lo ≥ hi then return',                                // 2

@@ -5,7 +5,7 @@ export const hanoi: TreeAlgorithm = {
   id: 'hanoi',
   name: 'Tower of Hanoi',
   summary: 'Move n−1 discs out of the way, move the big disc, move them back on top: three lines of recursion that provably need 2ⁿ − 1 moves. The variables panel tracks the pegs after every move.',
-  complexity: { time: { worst: 'O(2ⁿ)' }, space: 'O(n) stack', tags: ['Divide & conquer', '2ⁿ − 1 moves optimal'] },
+  complexity: { time: { worst: 'O(2ⁿ)' }, space: 'O(n) stack', recurrence: 'T(n) = 2T(n−1) + 1 ⇒ 2ⁿ − 1 moves', tags: ['Divide & conquer', '2ⁿ − 1 moves optimal'] },
   inputs: [{ key: 'n', label: 'Discs', kind: 'int', default: '4', min: 1, max: 6 }],
   pseudocode: [
     'procedure Hanoi(k, from, to, via)',            // 1

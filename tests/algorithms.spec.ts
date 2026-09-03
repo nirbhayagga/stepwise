@@ -617,3 +617,41 @@ test.describe('recursion', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Growth measurement (src/algorithms/sorting/measure.ts)
+
+import { SORTING } from '../src/algorithms/sorting';
+import { countOps, estimateOrder, makeInput, measureGrowth } from '../src/algorithms/sorting/measure';
+
+test.describe('growth measurement', () => {
+  test('countOps agrees with the frame builder metrics', () => {
+    const input = makeInput(60, 'random', 42);
+    for (const algo of SORTING_LIST.filter(a => a.cap === undefined)) {
+      const last = buildSortFrames(algo, input).at(-1)!;
+      const ops = countOps(algo, input);
+      expect(ops.comparisons, algo.id).toBe(last.comparisons);
+      expect(ops.swaps, algo.id).toBe(last.swaps);
+      expect(ops.writes, algo.id).toBe(last.writes);
+    }
+  });
+
+  test('empirical order matches theory on stereotypical inputs', () => {
+    const insertion = estimateOrder(measureGrowth(SORTING['insertion'], 'reversed'))!;
+    expect(insertion.model.id).toBe('n2');
+    expect(insertion.exponent).toBeGreaterThan(1.8);
+
+    const merge = estimateOrder(measureGrowth(SORTING['merge'], 'random'))!;
+    expect(merge.model.id).toBe('nlogn');
+
+    const counting = estimateOrder(measureGrowth(SORTING['counting'], 'random'))!;
+    expect(counting.model.id).toBe('n');
+  });
+
+  test('adaptive sorts are linear on already-sorted input', () => {
+    for (const id of ['bubble', 'insertion', 'timsort']) {
+      const est = estimateOrder(measureGrowth(SORTING[id], 'sorted'))!;
+      expect(est.model.id, id).toBe('n');
+    }
+  });
+});

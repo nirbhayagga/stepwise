@@ -14,6 +14,7 @@ defineProps<{ meta: AlgorithmMeta }>();
           <tr v-if="meta.complexity.time.average"><td class="k">Average</td><td>{{ meta.complexity.time.average }}</td></tr>
           <tr><td class="k">Worst</td><td>{{ meta.complexity.time.worst }}</td></tr>
           <tr><td class="k">Space</td><td>{{ meta.complexity.space }}</td></tr>
+          <tr v-if="meta.complexity.recurrence"><td class="k">Recurrence</td><td>{{ meta.complexity.recurrence }}</td></tr>
         </tbody>
       </table>
       <div v-if="meta.complexity.tags?.length" class="tags">

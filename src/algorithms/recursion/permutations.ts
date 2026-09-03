@@ -5,7 +5,7 @@ export const permutations: TreeAlgorithm = {
   id: 'permutations',
   name: 'Permutations',
   summary: 'Pick any unused element at each level: the branching factor shrinks n, n−1, …, 1, so the tree bottoms out in exactly n! leaves — one per ordering.',
-  complexity: { time: { worst: 'O(n · n!)' }, space: 'O(n) stack', tags: ['Factorial growth', 'Backtracking'] },
+  complexity: { time: { worst: 'O(n · n!)' }, space: 'O(n) stack', recurrence: 'T(n) = n · T(n−1) + Θ(1) ⇒ Θ(n · n!)', tags: ['Factorial growth', 'Backtracking'] },
   inputs: [{ key: 'values', label: 'Elements', kind: 'ints', default: '1, 2, 3', min: 0, max: 9, maxLength: 4 }],
   pseudocode: [
     'procedure Permute(prefix, remaining)',              // 1

@@ -33,7 +33,7 @@ export const quickSort: SortingAlgorithm = {
   id: 'quick',
   name: 'Quick Sort',
   summary: 'Partitions around a pivot (Lomuto scheme, last element) and recurses on both sides; quadratic only on adversarial input.',
-  complexity: { time: { best: 'Ω(n log n)', average: 'Θ(n log n)', worst: 'O(n²)' }, space: 'O(log n)', tags: ['In-place', 'Not stable', 'Divide & conquer'] },
+  complexity: { time: { best: 'Ω(n log n)', average: 'Θ(n log n)', worst: 'O(n²)' }, space: 'O(log n)', recurrence: 'T(n) = 2T(n/2) + Θ(n) on average ⇒ Θ(n log n); T(n) = T(n−1) + Θ(n) ⇒ Θ(n²) worst', tags: ['In-place', 'Not stable', 'Divide & conquer'] },
   pseudocode: [
     'procedure QuickSort(A, lo, hi)',              // 1
     '  if lo < hi then',                           // 2

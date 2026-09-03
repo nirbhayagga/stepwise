@@ -2,6 +2,8 @@
 export interface Complexity {
   time: { best?: string; average?: string; worst: string };
   space: string;
+  /** Divide-and-conquer recurrence with its solution, e.g. "T(n) = 2T(n/2) + Θ(n) ⇒ Θ(n log n)". */
+  recurrence?: string;
   /** Short qualitative properties, e.g. "Stable", "In-place", "Optimal". */
   tags?: string[];
 }

@@ -5,7 +5,7 @@ export const closestPair: GeometryAlgorithm = {
   id: 'closest-pair',
   name: 'Closest Pair (divide & conquer)',
   summary: 'Splits the points at the median x, solves both halves, then only checks the strip within d of the divider — each strip point against at most 7 successors by y — beating the O(n²) of comparing everything.',
-  complexity: { time: { worst: 'O(n log n)' }, space: 'O(n)', tags: ['Divide & conquer', 'Strip argument'] },
+  complexity: { time: { worst: 'O(n log n)' }, space: 'O(n)', recurrence: 'T(n) = 2T(n/2) + Θ(n) ⇒ Θ(n log n) — Master case 2', tags: ['Divide & conquer', 'Strip argument'] },
   pseudocode: [
     'procedure Closest(P sorted by x)',                                // 1
     '  if |P| ≤ 3 then compare all pairs',                             // 2

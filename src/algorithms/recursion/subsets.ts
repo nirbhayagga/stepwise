@@ -5,7 +5,7 @@ export const subsets: TreeAlgorithm = {
   id: 'subsets',
   name: 'Subsets (include / exclude)',
   summary: 'Every element is either in or out: each level of the call tree decides one element, so n decisions branch into exactly 2ⁿ leaves — one per subset.',
-  complexity: { time: { worst: 'O(2ⁿ)' }, space: 'O(n) stack', tags: ['Binary choice tree', 'Power set'] },
+  complexity: { time: { worst: 'O(2ⁿ)' }, space: 'O(n) stack', recurrence: 'T(n) = 2T(n−1) + Θ(1) ⇒ Θ(2ⁿ)', tags: ['Binary choice tree', 'Power set'] },
   inputs: [{ key: 'values', label: 'Set', kind: 'ints', default: '1, 2, 3', min: 0, max: 9, maxLength: 5 }],
   pseudocode: [
     'procedure Subsets(i, chosen)',                        // 1

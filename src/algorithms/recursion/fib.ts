@@ -7,7 +7,7 @@ export const fibNaive: TreeAlgorithm = {
   id: 'fib-naive',
   name: 'Fibonacci · Naive Recursion',
   summary: 'fib(n) = fib(n−1) + fib(n−2) computed literally: the call tree has ~1.6ⁿ nodes because identical subproblems are recomputed over and over. Run the memoized version on the same n and compare call counts.',
-  complexity: { time: { worst: 'O(φⁿ)' }, space: 'O(n) stack', tags: ['Exponential blow-up', 'Overlapping subproblems'] },
+  complexity: { time: { worst: 'O(φⁿ)' }, space: 'O(n) stack', recurrence: 'T(n) = T(n−1) + T(n−2) + Θ(1) ⇒ Θ(φⁿ), φ ≈ 1.618', tags: ['Exponential blow-up', 'Overlapping subproblems'] },
   inputs: [N_INPUT],
   pseudocode: [
     'procedure Fib(n)',                       // 1

@@ -23,9 +23,10 @@ Built with Vue 3, TypeScript and Vite. Runs entirely in the browser; no backend.
 | **Backtracking** | N-Queens, and Sudoku three ways: naive backtracking, Norvig-style constraint propagation + MRV, and a no-guessing human technique ladder (naked/hidden singles, pairs, triples, pointing pairs, X-Wing) — the engines behind sudoku.nirbhay.dev |
 | **Recursion** | Live call trees: naive vs. memoized Fibonacci, subsets, permutations, Tower of Hanoi, and the Ackermann function |
 | **Number theory** | Sieve of Eratosthenes |
+| **Growth analysis** | Runs every sort across input sizes and distributions, plots measured operation counts, and fits the empirical order (n, n log n, n^1.5, n²) from the data — plus a plain-English O/Θ/Ω primer |
 | **Sandbox** | Write your own algorithm in JavaScript against a small drawing API; runs in a Web Worker so it can be stopped at any time |
 
-Each algorithm page shows its time/space complexity and properties (stable, in-place, optimal, …), the pseudocode with the active line highlighted, the variables at the current step, a legend, and step counters (comparisons, swaps, writes, nodes visited, path cost, …). Wall-clock time is deliberately not reported: it would measure the recorder, not the algorithm.
+Each algorithm page shows its time/space complexity and properties (stable, in-place, optimal, …), the recurrence relation where one drives the analysis, the pseudocode with the active line highlighted, the variables at the current step, a legend, and step counters (comparisons, swaps, writes, nodes visited, path cost, …). Wall-clock time is deliberately not reported: it would measure the recorder, not the algorithm.
 
 Keyboard: `Space` play/pause, `←`/`→` step, `Home`/`End` jump, `R` reset.
 
@@ -37,6 +38,8 @@ npm run dev        # dev server with hot reload
 npm run build      # type-check (vue-tsc) + production build into dist/
 npm run preview    # serve dist/ locally
 ```
+
+The app is an installable PWA: all assets (fonts included — nothing is loaded from third parties) are precached by a service worker, so it works fully offline after the first visit.
 
 `dist/` is fully static and uses hash routing with a relative base, so it can be hosted from any static host or sub-path without rewrite rules. Production is a Cloudflare Worker serving static assets (`wrangler.jsonc`; Workers Builds runs `npm run build` then `npx wrangler deploy`, or `npm run deploy` locally); `public/_headers` sets cache and security headers there. A container image (`Dockerfile`, `compose.yaml`) is published to GHCR by CI for self-hosting.
 

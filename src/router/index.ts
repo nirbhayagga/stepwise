@@ -17,6 +17,7 @@ export const NAV: NavEntry[] = [
   { path: '/backtracking', name: 'backtracking', label: 'N-Queens · Sudoku', title: 'Backtracking', group: 'Backtracking' },
   { path: '/recursion', name: 'recursion', label: 'Call Trees', title: 'Recursion', group: 'Recursion' },
   { path: '/numbers', name: 'numbers', label: 'Sieve', title: 'Number Theory', group: 'Numbers' },
+  { path: '/scheduling', name: 'scheduling', label: 'CPU Scheduling', title: 'CPU Scheduling', group: 'Systems' },
   { path: '/growth', name: 'growth', label: 'Growth Curves', title: 'Growth Analysis', group: 'Analysis' },
   { path: '/sandbox', name: 'sandbox', label: 'Sandbox', title: 'Sandbox', group: 'Custom' },
 ]
@@ -35,6 +36,7 @@ const views: Record<string, () => Promise<unknown>> = {
   backtracking: () => import('../views/BacktrackingView.vue'),
   recursion: () => import('../views/RecursionView.vue'),
   numbers: () => import('../views/NumbersView.vue'),
+  scheduling: () => import('../views/SchedulingView.vue'),
   growth: () => import('../views/GrowthView.vue'),
   sandbox: () => import('../views/SandboxView.vue'),
 }

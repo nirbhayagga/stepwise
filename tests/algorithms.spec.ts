@@ -655,3 +655,131 @@ test.describe('growth measurement', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// CPU scheduling
+
+import { SCHEDULING_LIST, SCHEDULING, buildSchedFrames } from '../src/algorithms/scheduling';
+import type { SchedProcess, SchedFrame } from '../src/algorithms/scheduling';
+
+const schedule = (id: string, values: Record<string, string>) => {
+  const algo = SCHEDULING[id];
+  const parsed = parseInputs(algo.inputs, { ...defaultInputs(algo.inputs), ...values });
+  expect(parsed.ok, id).toBe(true);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const plan = algo.setup(parsed.data);
+  if ('error' in plan) throw new Error(plan.error);
+  return { algo, plan, frames: buildSchedFrames(algo, plan) };
+};
+
+const finalChecks = (id: string, procs: SchedProcess[], frames: SchedFrame[]) => {
+  const last = frames[frames.length - 1];
+  const gantt = Array.from(last.gantt);
+  // Every process ran exactly its burst and finished after arrival + burst.
+  for (const p of procs) {
+    expect(gantt.filter(g => g === p.id).length, `${id} ${p.id} runs`).toBe(p.burst);
+    expect(last.completion[p.id], `${id} ${p.id} completion`).not.toBeNull();
+    expect(last.completion[p.id]!, `${id} ${p.id} completion time`).toBeGreaterThanOrEqual(p.arrival + p.burst);
+    expect(gantt.lastIndexOf(p.id) + 1, `${id} ${p.id} completion = last run tick`).toBe(last.completion[p.id]);
+  }
+  // Work-conserving: the CPU never idles while an arrived process is unfinished.
+  for (let t = 0; t < gantt.length; t++) {
+    if (gantt[t] !== -1) continue;
+    for (const p of procs) {
+      const doneBy = gantt.slice(0, t).filter(g => g === p.id).length === p.burst;
+      expect(p.arrival <= t && !doneBy, `${id}: idle at t=${t} while P${p.id + 1} ready`).toBe(false);
+    }
+  }
+  // Averages match an independent recomputation.
+  const n = procs.length;
+  const turn = procs.map(p => last.completion[p.id]! - p.arrival);
+  expect(last.avgTurnaround).toBeCloseTo(turn.reduce((a, b) => a + b, 0) / n, 2);
+  expect(last.avgWaiting).toBeCloseTo(turn.reduce((a, b, i) => a + b - procs[i].burst, 0) / n, 2);
+  return last;
+};
+
+test.describe('scheduling', () => {
+  for (const algo of SCHEDULING_LIST) {
+    test(`${algo.id} produces a valid schedule with valid lines`, () => {
+      const { plan, frames } = schedule(algo.id, {});
+      linesInRange(algo, frames);
+      const last = finalChecks(algo.id, plan.procs, frames);
+      if (!algo.preemptive) {
+        // Non-preemptive: each process's ticks are contiguous.
+        const gantt = Array.from(last.gantt);
+        for (const p of plan.procs) {
+          expect(gantt.lastIndexOf(p.id) - gantt.indexOf(p.id) + 1, `${algo.id} P${p.id + 1} contiguous`).toBe(p.burst);
+        }
+      }
+    });
+  }
+
+  test('fcfs runs in arrival order and never switches back', () => {
+    const { plan, frames } = schedule('fcfs', {});
+    const gantt = Array.from(frames[frames.length - 1].gantt).filter(g => g >= 0);
+    const firstRun = new Map<number, number>();
+    gantt.forEach((pid, k) => { if (!firstRun.has(pid)) firstRun.set(pid, k); });
+    const order = [...plan.procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id).map(p => p.id);
+    expect([...firstRun.keys()]).toEqual(order);
+  });
+
+  test('srtf has the lowest average waiting time on random instances', () => {
+    const rnd = mulberry32(1234);
+    for (let trial = 0; trial < 12; trial++) {
+      const n = 3 + Math.floor(rnd() * 5);
+      const arrivals = Array.from({ length: n }, () => Math.floor(rnd() * 12)).join(', ');
+      const bursts = Array.from({ length: n }, () => 1 + Math.floor(rnd() * 9)).join(', ');
+      const priorities = Array.from({ length: n }, () => Math.floor(rnd() * 9)).join(', ');
+      const wait = (id: string) => {
+        const extra = id === 'priority' ? { priorities } : id === 'rr' ? { quantum: '2' } : {};
+        const { frames } = schedule(id, { arrivals, bursts, ...extra });
+        return frames[frames.length - 1].avgWaiting!;
+      };
+      const srtfW = wait('srtf');
+      for (const other of ['fcfs', 'sjf', 'rr', 'priority']) {
+        expect(srtfW, `trial ${trial}: srtf vs ${other} (${arrivals} | ${bursts})`).toBeLessThanOrEqual(wait(other));
+      }
+    }
+  });
+
+  test('round robin matches an independent reference simulation', () => {
+    const refRR = (procs: SchedProcess[], q: number) => {
+      const rem = procs.map(p => p.burst);
+      const completion = new Array<number>(procs.length).fill(0);
+      const queued = new Array<boolean>(procs.length).fill(false);
+      const queue: number[] = [];
+      let t = 0, done = 0;
+      const admit = (now: number) => {
+        [...procs].sort((a, b) => a.arrival - b.arrival || a.id - b.id)
+          .forEach(p => { if (!queued[p.id] && p.arrival <= now) { queued[p.id] = true; queue.push(p.id); } });
+      };
+      admit(0);
+      while (done < procs.length) {
+        if (!queue.length) { t++; admit(t); continue; }
+        const pid = queue.shift()!;
+        for (let k = Math.min(q, rem[pid]); k > 0; k--) { rem[pid]--; t++; admit(t); }
+        if (rem[pid] === 0) { completion[pid] = t; done++; } else queue.push(pid);
+      }
+      return completion;
+    };
+    const rnd = mulberry32(77);
+    for (let trial = 0; trial < 10; trial++) {
+      const n = 2 + Math.floor(rnd() * 6);
+      const q = 1 + Math.floor(rnd() * 4);
+      const arrivals = Array.from({ length: n }, () => Math.floor(rnd() * 10));
+      const bursts = Array.from({ length: n }, () => 1 + Math.floor(rnd() * 8));
+      const { plan, frames } = schedule('rr', { arrivals: arrivals.join(', '), bursts: bursts.join(', '), quantum: String(q) });
+      const last = finalChecks(`rr q=${q}`, plan.procs, frames);
+      expect(last.completion, `trial ${trial}`).toEqual(refRR(plan.procs, q));
+    }
+  });
+
+  test('mismatched input lengths are rejected', () => {
+    const algo = SCHEDULING['fcfs'];
+    const parsed = parseInputs(algo.inputs, { ...defaultInputs(algo.inputs), arrivals: '0, 1' });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const plan = algo.setup(parsed.data);
+    expect('error' in plan).toBe(true);
+  });
+});

@@ -23,6 +23,7 @@ Built with Vue 3, TypeScript and Vite. Runs entirely in the browser; no backend.
 | **Backtracking** | N-Queens, and Sudoku three ways: naive backtracking, Norvig-style constraint propagation + MRV, and a no-guessing human technique ladder (naked/hidden singles, pairs, triples, pointing pairs, X-Wing) — the engines behind sudoku.nirbhay.dev |
 | **Recursion** | Live call trees: naive vs. memoized Fibonacci, subsets, permutations, Tower of Hanoi, and the Ackermann function |
 | **Number theory** | Sieve of Eratosthenes |
+| **CPU scheduling** | First-Come First-Served, Shortest Job First, Shortest Remaining Time First (preemptive), Round Robin (configurable quantum), non-preemptive Priority — Gantt strip, per-process lanes, live ready queue, waiting/turnaround/context-switch metrics on an editable process table |
 | **Growth analysis** | Runs every sort across input sizes and distributions, plots measured operation counts, and fits the empirical order (n, n log n, n^1.5, n²) from the data — plus a plain-English O/Θ/Ω primer |
 | **Sandbox** | Write your own algorithm in JavaScript against a small drawing API; runs in a Web Worker so it can be stopped at any time |
 

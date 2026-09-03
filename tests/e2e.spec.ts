@@ -3,7 +3,7 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 
-const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'growth', 'sandbox'];
+const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'scheduling', 'growth', 'sandbox'];
 
 /** Fail the test on any uncaught exception or console.error. */
 const watchConsole = (page: Page) => {
@@ -151,7 +151,7 @@ test('new modules produce results at the end of their timelines', async ({ page 
 test.describe('mobile viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'growth', 'sandbox']) {
+  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'scheduling', 'growth', 'sandbox']) {
     test(`/${route} fits the screen width`, async ({ page }) => {
       const errors = watchConsole(page);
       await page.goto(`/#/${route}`);
@@ -248,6 +248,27 @@ test('growth analysis: measures, plots and fits sorting algorithms', async ({ pa
   await page.locator('.pick', { hasText: 'Heap' }).click();
   await expect(page.locator('.fit')).toHaveCount(4);
   await expect(page.locator('.ops-table tbody tr')).toHaveCount(4);
+});
+
+test('scheduling: gantt fills, metrics compute, quantum drives context switches', async ({ page }) => {
+  await page.goto('/#/scheduling');
+  await page.locator('.queue-row').waitFor();
+  await page.keyboard.press('End');
+  // FCFS on the defaults: 5 processes, 4 switches, avg waiting 6.
+  expect(await page.locator('.seg').count()).toBeGreaterThanOrEqual(5);
+  await expect(page.locator('.metric', { hasText: 'Context switches' }).locator('.value')).toHaveText('4');
+  await expect(page.locator('.metric', { hasText: 'Avg waiting' }).locator('.value')).toHaveText('6');
+  await expect(page.locator('.proc-table td', { hasText: '—' })).toHaveCount(0);
+
+  // Round Robin with q=1 must context-switch far more on the same input.
+  await selectAlgorithm(page, 'rr');
+  const q = page.getByLabel('Quantum q');
+  await q.fill('1');
+  await q.press('Enter');
+  await page.locator('h1').click(); // shortcuts are ignored while an input has focus
+  await page.keyboard.press('End');
+  const switches = Number(await page.locator('.metric', { hasText: 'Context switches' }).locator('.value').innerText());
+  expect(switches).toBeGreaterThan(10);
 });
 
 test('PWA: the service worker activates and controls the page', async ({ page }) => {

@@ -24,6 +24,7 @@ Built with Vue 3, TypeScript and Vite. Runs entirely in the browser; no backend.
 | **Recursion** | Live call trees: naive vs. memoized Fibonacci, subsets, permutations, Tower of Hanoi, and the Ackermann function |
 | **Number theory** | Sieve of Eratosthenes |
 | **CPU scheduling** | First-Come First-Served, Shortest Job First, Shortest Remaining Time First (preemptive), Round Robin (configurable quantum), non-preemptive Priority — Gantt strip, per-process lanes, live ready queue, waiting/turnaround/context-switch metrics on an editable process table |
+| **Concurrency** | Simulated thread interleavings on shared memory: racy `counter++` (watch a lost update happen instruction by instruction), the same program under a mutex, and an atomic fetch-add — seeded so every interleaving is reproducible and scrubbable, with a shuffle button to find new ones, plus an interactive Amdahl's-law speedup chart (Gustafson optional) |
 | **Growth analysis** | Runs every sort across input sizes and distributions, plots measured operation counts, and fits the empirical order (n, n log n, n^1.5, n²) from the data — plus a plain-English O/Θ/Ω primer |
 | **Sandbox** | Write your own algorithm in JavaScript against a small drawing API; runs in a Web Worker so it can be stopped at any time |
 

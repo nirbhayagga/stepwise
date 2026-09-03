@@ -3,7 +3,7 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 
-const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'scheduling', 'growth', 'sandbox'];
+const ROUTES = ['sort', 'compare', 'path', 'path-compare', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'scheduling', 'concurrency', 'growth', 'sandbox'];
 
 /** Fail the test on any uncaught exception or console.error. */
 const watchConsole = (page: Page) => {
@@ -151,7 +151,7 @@ test('new modules produce results at the end of their timelines', async ({ page 
 test.describe('mobile viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'scheduling', 'growth', 'sandbox']) {
+  for (const route of ['sort', 'compare', 'path', 'dp', 'tree', 'graph', 'strings', 'hash', 'geometry', 'backtracking', 'recursion', 'numbers', 'scheduling', 'concurrency', 'growth', 'sandbox']) {
     test(`/${route} fits the screen width`, async ({ page }) => {
       const errors = watchConsole(page);
       await page.goto(`/#/${route}`);
@@ -269,6 +269,26 @@ test('scheduling: gantt fills, metrics compute, quantum drives context switches'
   await page.keyboard.press('End');
   const switches = Number(await page.locator('.metric', { hasText: 'Context switches' }).locator('.value').innerText());
   expect(switches).toBeGreaterThan(10);
+});
+
+test('concurrency: the default interleaving loses updates and the mutex fixes it', async ({ page }) => {
+  await page.goto('/#/concurrency');
+  await page.locator('.cards .card').first().waitFor();
+  await page.keyboard.press('End');
+  // Default: 2 threads x 2 increments on seed 7 -> counter 2 instead of 4.
+  await expect(page.locator('.metric', { hasText: 'Lost updates' }).locator('.value')).toHaveText('2');
+  await expect(page.locator('.metric', { hasText: 'Counter' }).locator('.value')).toContainText('2 / 4');
+
+  // Same workload and seed under a mutex: nothing lost.
+  await selectAlgorithm(page, 'mutex-counter');
+  await page.keyboard.press('End');
+  await expect(page.locator('.metric', { hasText: 'Lost updates' }).locator('.value')).toHaveText('0');
+  await expect(page.locator('.metric', { hasText: 'Counter' }).locator('.value')).toContainText('4 / 4');
+
+  // Amdahl panel reacts to the parallel-fraction slider.
+  await expect(page.locator('.panel-title', { hasText: "Amdahl's law" })).toBeVisible();
+  await page.getByLabel(/Parallel fraction/).fill('50');
+  await expect(page.locator('.note', { hasText: '2.0' })).toBeVisible(); // ceiling 1/(1-0.5)
 });
 
 test('PWA: the service worker activates and controls the page', async ({ page }) => {

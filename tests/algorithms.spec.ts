@@ -783,3 +783,77 @@ test.describe('scheduling', () => {
     expect('error' in plan).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Concurrency (simulated thread interleavings)
+
+import { CONCURRENCY_LIST, CONCURRENCY, buildConcFrames } from '../src/algorithms/concurrency';
+
+const concFrames = (id: string, values: Record<string, string>) => {
+  const algo = CONCURRENCY[id];
+  const parsed = parseInputs(algo.inputs, { ...defaultInputs(algo.inputs), ...values });
+  expect(parsed.ok, id).toBe(true);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const plan = algo.setup(parsed.data);
+  if ('error' in plan) throw new Error(plan.error);
+  return { algo, plan, frames: buildConcFrames(algo, plan) };
+};
+
+test.describe('concurrency', () => {
+  for (const algo of CONCURRENCY_LIST) {
+    test(`${algo.id} conserves executed instructions with valid lines`, () => {
+      for (const seed of [0, 1, 7, 42, 999]) {
+        for (const threads of [2, 3]) {
+          const { plan, frames } = concFrames(algo.id, { seed: String(seed), threads: String(threads), increments: '2' });
+          linesInRange(algo, frames.slice(1)); // frame 0 is the init snapshot (line 0)
+          const last = frames[frames.length - 1];
+          // Every thread executed its whole program, exactly once per instruction.
+          const perThread = new Map<number, number>();
+          for (const tid of last.strip) perThread.set(tid, (perThread.get(tid) ?? 0) + 1);
+          const instrs = last.strip.length / plan.threadCount;
+          for (let tid = 0; tid < plan.threadCount; tid++) expect(perThread.get(tid), `${algo.id} T${tid + 1}`).toBe(instrs);
+          expect(last.lost).toBe(plan.expected - last.counter);
+          expect(last.counter).toBeLessThanOrEqual(plan.expected);
+          expect(last.threads.every(t => t.phase === 'done')).toBe(true);
+        }
+      }
+    });
+  }
+
+  test('mutex and atomic counters are always correct; the racy one is not', () => {
+    let raceLosses = 0;
+    for (let seed = 0; seed < 25; seed++) {
+      const v = { seed: String(seed), threads: '2', increments: '2' };
+      for (const id of ['mutex-counter', 'atomic-counter']) {
+        const { plan, frames } = concFrames(id, v);
+        expect(frames[frames.length - 1].counter, `${id} seed ${seed}`).toBe(plan.expected);
+      }
+      const { plan, frames } = concFrames('race-counter', v);
+      if (frames[frames.length - 1].counter < plan.expected) raceLosses++;
+    }
+    expect(raceLosses).toBeGreaterThan(10); // most interleavings lose an update
+  });
+
+  test('mutex holds mutual exclusion in every frame', () => {
+    // A thread whose next instruction is on lines 4..7 has passed acquire(lock)
+    // and not yet released — at most one may be inside, and it must hold the lock.
+    for (const seed of [0, 3, 7, 11, 500]) {
+      const { frames } = concFrames('mutex-counter', { seed: String(seed), threads: '4', increments: '3' });
+      for (const f of frames) {
+        const inside = f.threads.filter(t => t.nextLine !== null && t.nextLine >= 4 && t.nextLine <= 7);
+        expect(inside.length, `seed ${seed}`).toBeLessThanOrEqual(1);
+        if (inside.length === 1) expect(f.lock, `seed ${seed}`).toBe(inside[0].id);
+      }
+    }
+  });
+
+  test('same seed reproduces the same interleaving; default seed shows the race', () => {
+    const a = concFrames('race-counter', { seed: '123' }).frames.at(-1)!;
+    const b = concFrames('race-counter', { seed: '123' }).frames.at(-1)!;
+    expect(Array.from(a.strip)).toEqual(Array.from(b.strip));
+    expect(a.counter).toBe(b.counter);
+    // The shipped default (seed 7, 2 threads × k=2) must demonstrate lost updates.
+    const def = concFrames('race-counter', {}).frames.at(-1)!;
+    expect(def.lost!).toBeGreaterThan(0);
+  });
+});
